@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import TypeAdapter
 
-from .._core import Endpoint, ParamValue
+from .._core import Endpoint, ParamValue, json_list
 from ..models.stops import Arrival, NearbyStop, Stop, StopSummary
 from ._params import csv, segment
 
@@ -23,11 +23,11 @@ _arrivals = TypeAdapter(list[Arrival])
 
 
 def _parse_search(raw: Any) -> list[StopSummary]:
-    return _stop_summaries.validate_python(raw.get("matches") or [])
+    return _stop_summaries.validate_python(json_list(raw, "matches"))
 
 
 def _parse_nearby(raw: Any) -> list[NearbyStop]:
-    return _nearby_stops.validate_python(raw.get("stopPoints") or [])
+    return _nearby_stops.validate_python(json_list(raw, "stopPoints"))
 
 
 def _parse_arrivals(raw: Any) -> list[Arrival]:
@@ -133,7 +133,17 @@ class AsyncStops:
         self._client = client
 
     async def search(self, query: str, modes: str | Sequence[str] = ("tube",)) -> list[StopSummary]:
-        """Search stops by name. See :meth:`Stops.search`."""
+        """Search stops by name.
+
+        Args:
+            query: Free text, e.g. ``"Oxford Circus"``.
+            modes: Only return stops served by these modes, e.g. ``"bus"`` or
+                ``("tube", "dlr")``. Pass an empty tuple for all modes.
+
+        Returns:
+            Matching stops, in TfL's relevance order. Cached when the client cache is on.
+
+        """
         return await self._client._execute(_search_endpoint(query, modes))
 
     async def nearby(
@@ -143,13 +153,38 @@ class AsyncStops:
         radius_m: int = 800,
         stop_types: str | Sequence[str] = ("NaptanMetroStation",),
     ) -> list[NearbyStop]:
-        """Find stops within ``radius_m`` metres of a point. See :meth:`Stops.nearby`."""
+        """Find stops within ``radius_m`` metres of a point.
+
+        Args:
+            lat: Latitude (WGS84).
+            lon: Longitude (WGS84).
+            radius_m: Search radius in metres.
+            stop_types: One NaPTAN stop type or several, e.g. ``"NaptanMetroStation"``,
+                ``"NaptanPublicBusCoachTram"``, ``"NaptanRailStation"``.
+
+        Returns:
+            Stops in TfL's order (nearest first), each with ``distance_m``.
+
+        """
         return await self._client._execute(_nearby_endpoint(lat, lon, radius_m, stop_types))
 
     async def get(self, stop_id: str) -> Stop:
-        """Fetch one stop. See :meth:`Stops.get`."""
+        """Fetch one stop, including its lines and child stops (platforms, entrances).
+
+        Args:
+            stop_id: A NaPTAN id such as ``"940GZZLUOXC"``.
+
+        Raises:
+            TflNotFoundError: If the stop id is not recognised.
+
+        """
         return await self._client._execute(_get_endpoint(stop_id))
 
     async def arrivals(self, stop_id: str) -> list[Arrival]:
-        """Fetch live arrivals for a stop, soonest first. See :meth:`Stops.arrivals`."""
+        """Fetch live arrival predictions for a stop, soonest first. Never cached.
+
+        Args:
+            stop_id: A NaPTAN id such as ``"940GZZLUOXC"``.
+
+        """
         return await self._client._execute(_arrivals_endpoint(stop_id))

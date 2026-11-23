@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
 
@@ -356,3 +357,34 @@ def test_version_matches_package_metadata() -> None:
 
     assert tfl.__version__ == version("tfl-sdk")
     assert USER_AGENT.startswith(f"tfl-sdk/{tfl.__version__} ")
+
+
+# ------------------------------------------------------------------ unexpected response shapes
+
+
+@pytest.mark.parametrize(
+    ("path", "payload", "call"),
+    [
+        (ARRIVALS, [{"id": "1"}], lambda c: c.stops.arrivals(OXC)),  # missing required fields
+        ("/StopPoint/Search/oxford", [], lambda c: c.stops.search("oxford")),  # list, not object
+    ],
+)
+def test_unparseable_response_raises_tfl_error(
+    path: str, payload: object, call: Callable[[TflClient], object], api: respx.MockRouter
+) -> None:
+    api.get(path).respond(json=payload)
+    with TflClient(max_retries=0) as client, pytest.raises(TflError) as info:
+        call(client)
+    assert type(info.value) is TflError
+    assert info.value.status_code == 200
+    assert info.value.body == payload
+
+
+def test_unparseable_response_is_not_cached(api: respx.MockRouter) -> None:
+    route = api.get("/StopPoint/Search/oxford")
+    route.side_effect = [httpx.Response(200, json=[]), httpx.Response(200, json={"matches": []})]
+    with TflClient(cache_ttl=60) as client:
+        with pytest.raises(TflError):
+            client.stops.search("oxford")
+        assert client.stops.search("oxford") == []
+    assert route.call_count == 2

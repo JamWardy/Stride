@@ -75,9 +75,28 @@ class AsyncLines:
         self._client = client
 
     async def status(self, modes: str | Sequence[str] = ("tube",)) -> list[LineStatus]:
-        """Fetch the current status of every line on the given modes. See :meth:`Lines.status`."""
+        """Fetch the current status of every line on the given modes. Never cached.
+
+        Args:
+            modes: One mode or several, e.g. ``"tube"`` or ``("tube", "dlr")``.
+
+        Returns:
+            One entry per line, each with its current ``statuses`` (usually one).
+
+        Raises:
+            ValueError: If ``modes`` is empty.
+
+        """
         return await self._client._execute(_status_endpoint(modes))
 
     async def disruptions(self, line_id: str) -> list[Disruption]:
-        """Fetch current disruptions on a line. See :meth:`Lines.disruptions`."""
+        """Fetch current disruptions on a line. Never cached.
+
+        Args:
+            line_id: A line id such as ``"central"``.
+
+        Returns:
+            The disruptions; empty when the line has none.
+
+        """
         return await self._client._execute(_disruptions_endpoint(line_id))

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 from pydantic import TypeAdapter, ValidationError
 
-from .._core import Endpoint, ParamValue, error_details
+from .._core import Endpoint, ParamValue, error_details, json_list
 from ..errors import TflAmbiguousLocationError, TflError
 from ..models._base import LONDON
 from ..models.journeys import Journey, LocationOption
@@ -26,7 +26,7 @@ _location_options = TypeAdapter(list[LocationOption])
 
 
 def _parse_journeys(raw: Any) -> list[Journey]:
-    return _journeys.validate_python(raw.get("journeys") or [])
+    return _journeys.validate_python(json_list(raw, "journeys"))
 
 
 def _options(body: dict[str, Any], key: str) -> list[LocationOption]:
@@ -133,5 +133,21 @@ class AsyncJourneys:
     async def plan(
         self, from_: str, to: str, *, depart_at: datetime | None = None
     ) -> list[Journey]:
-        """Plan journeys between two places. See :meth:`Journeys.plan`."""
+        """Plan journeys between two places. Never cached.
+
+        Args:
+            from_: Where to start: a stop id (``"940GZZLUOXC"``), an ICS code, a place name,
+                a postcode or ``"lat,lon"``.
+            to: Where to go, in any of the same forms.
+            depart_at: When to leave. Naive datetimes are read as London time; ``None``
+                means now.
+
+        Returns:
+            TfL's journey options, in the order TfL gives them.
+
+        Raises:
+            TflAmbiguousLocationError: If ``from_`` or ``to`` matches several places; the
+                error lists the candidates.
+
+        """
         return await self._client._execute(_plan_endpoint(from_, to, depart_at))

@@ -55,6 +55,17 @@ class Endpoint(Generic[T]):
     parse_error: Callable[[httpx.Response], TflError | None] | None = None
 
 
+def json_list(raw: Any, key: str) -> Any:
+    """Return the list under ``key`` in a JSON object (``[]`` if missing or null).
+
+    Raises ``ValueError`` if ``raw`` is not an object, so a response of the wrong shape
+    surfaces as a :class:`TflError` rather than an ``AttributeError``.
+    """
+    if not isinstance(raw, dict):
+        raise ValueError(f"expected a JSON object with {key!r}, got {type(raw).__name__}")
+    return raw.get(key) or []
+
+
 # --------------------------------------------------------------------------- retries
 
 
@@ -199,17 +210,19 @@ class BaseClient:
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
-        self.app_key = app_key if app_key is not None else os.environ.get(APP_KEY_ENV_VAR)
-        self.timeout = timeout
-        self.base_url = base_url.rstrip("/")
+        # Read once to build the HTTP client, so kept private: changing them later would
+        # have no effect.
+        self._app_key = app_key if app_key is not None else os.environ.get(APP_KEY_ENV_VAR)
+        self._timeout = timeout
+        self._base_url = base_url.rstrip("/")
         self.retry_policy = RetryPolicy(max_retries=max_retries)
         self.cache = TTLCache(cache_ttl) if cache_ttl else None
 
     def _http_options(self) -> dict[str, Any]:
-        params = {"app_key": self.app_key} if self.app_key else {}
+        params = {"app_key": self._app_key} if self._app_key else {}
         return {
-            "base_url": self.base_url,
-            "timeout": self.timeout,
+            "base_url": self._base_url,
+            "timeout": self._timeout,
             "params": params,
             "headers": {"User-Agent": USER_AGENT, "Accept": "application/json"},
         }
@@ -255,9 +268,18 @@ class BaseClient:
                 body=response.text or None,
                 url=_redacted_url(response),
             ) from exc
+        try:
+            result = endpoint.parse(raw)
+        except ValueError as exc:  # includes pydantic.ValidationError
+            raise TflError(
+                f"TfL returned a response this SDK could not parse: {exc}",
+                status_code=response.status_code,
+                body=raw,
+                url=_redacted_url(response),
+            ) from exc
         if self.cache is not None and endpoint.cacheable:
             self.cache.set(self._cache_key(endpoint), raw)
-        return endpoint.parse(raw)
+        return result
 
     @staticmethod
     def _transport_error(
