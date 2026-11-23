@@ -65,9 +65,7 @@ export function App() {
           <Footprints size={22} strokeWidth={2.5} />
         </span>
         <div>
-          <h1>
-            Walk or <span className="accent">wait?</span>
-          </h1>
+          <h1>Stride</h1>
           <p className="tagline">Door to door, at your walking speed</p>
         </div>
       </header>

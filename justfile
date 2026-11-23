@@ -22,7 +22,7 @@ dev:
 
 # Run the API on its own (port from API_PORT, default 8000)
 api:
-    uv run uvicorn speedy_api.main:app --reload --port {{api_port}}
+    uv run uvicorn stride_api.main:app --reload --port {{api_port}}
 
 # Run the web app on its own
 web:
@@ -30,7 +30,7 @@ web:
 
 # Regenerate the frontend's API types from FastAPI's OpenAPI schema
 types:
-    uv run python -m speedy_api.export_openapi apps/web/openapi.json
+    uv run python -m stride_api.export_openapi apps/web/openapi.json
     npm --prefix apps/web run gen:api
 
 # Run the Python and frontend tests

@@ -1,9 +1,9 @@
 [project]
-name = "speedy-tfl"
+name = "stride"
 version = "0.0.0"
 description = "Workspace root for tfl-sdk, tfl-walk and the web app API"
 requires-python = ">=3.11"
-dependencies = ["tfl-sdk", "tfl-walk", "speedy-api"]
+dependencies = ["tfl-sdk", "tfl-walk", "stride-api"]
 
 [tool.uv]
 package = false
@@ -14,7 +14,7 @@ members = ["packages/*", "apps/api"]
 [tool.uv.sources]
 tfl-sdk = { workspace = true }
 tfl-walk = { workspace = true }
-speedy-api = { workspace = true }
+stride-api = { workspace = true }
 
 [dependency-groups]
 dev = [

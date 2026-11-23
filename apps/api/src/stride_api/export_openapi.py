@@ -1,6 +1,6 @@
 """Write the API's OpenAPI schema as JSON, for generating the frontend's types.
 
-Usage: ``uv run python -m speedy_api.export_openapi apps/web/openapi.json``
+Usage: ``uv run python -m stride_api.export_openapi apps/web/openapi.json``
 """
 
 from __future__ import annotations

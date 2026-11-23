@@ -1,4 +1,4 @@
-# Web app
+# Stride web app
 
 A phone-first, door-to-door journey planner timed at your own walking speed. It has two parts:
 

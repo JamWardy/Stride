@@ -1,6 +1,6 @@
 """HTTP layer over tfl-walk: door-to-door journeys at the walker's own pace.
 
-Run with ``uv run uvicorn speedy_api.main:app --reload``. Set ``TFL_APP_KEY`` for a higher
+Run with ``uv run uvicorn stride_api.main:app --reload``. Set ``TFL_APP_KEY`` for a higher
 TfL rate limit and ``GOOGLE_MAPS_API_KEY`` for place suggestions; both are only ever read
 here, never sent to the browser. ``CORS_ORIGINS`` is
 a comma-separated list of allowed frontend origins (default: the Vite dev server).
@@ -203,7 +203,7 @@ def create_app(
             app.state.places = GooglePlaces(google_api_key, http) if google_api_key else None
             yield
 
-    app = FastAPI(title="speedy-tfl", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(title="Stride", version="0.1.0", lifespan=lifespan)
     app.add_middleware(CORSMiddleware, allow_origins=list(cors_origins), allow_methods=["GET"])
     app.add_exception_handler(TflError, _tfl_error)
     app.add_exception_handler(PlacesError, _places_error)

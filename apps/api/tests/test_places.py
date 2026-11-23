@@ -9,8 +9,8 @@ import httpx
 import pytest
 import respx
 from fastapi.testclient import TestClient
-from speedy_api import main
-from speedy_api.places import GooglePlaces, PlacePrediction, PlacesError
+from stride_api import main
+from stride_api.places import GooglePlaces, PlacePrediction, PlacesError
 from tfl import StopSummary
 
 GOOGLE = "https://places.googleapis.com/v1"

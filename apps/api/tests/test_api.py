@@ -8,7 +8,7 @@ from typing import Any, ClassVar
 
 import pytest
 from fastapi.testclient import TestClient
-from speedy_api import main
+from stride_api import main
 from tfl import LocationOption, Place, TflAmbiguousLocationError, TflNotFoundError, TflServerError
 from tfl_walk import JourneyOption, TrainLeg, WalkerProfile, WalkLeg
 
