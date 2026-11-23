@@ -10,6 +10,8 @@ from typing import TypeVar
 import httpx
 
 from ._core import DEFAULT_BASE_URL, BaseClient, Endpoint
+from .resources.journeys import AsyncJourneys, Journeys
+from .resources.lines import AsyncLines, Lines
 from .resources.stops import AsyncStops, Stops
 
 T = TypeVar("T")
@@ -48,6 +50,8 @@ class TflClient(BaseClient):
         super().__init__(app_key, timeout, max_retries, cache_ttl, base_url)
         self._http = httpx.Client(**self._http_options())
         self.stops = Stops(self)
+        self.lines = Lines(self)
+        self.journeys = Journeys(self)
 
     def _execute(self, endpoint: Endpoint[T]) -> T:
         cached = self._cached(endpoint)
@@ -105,6 +109,8 @@ class AsyncTflClient(BaseClient):
         super().__init__(app_key, timeout, max_retries, cache_ttl, base_url)
         self._http = httpx.AsyncClient(**self._http_options())
         self.stops = AsyncStops(self)
+        self.lines = AsyncLines(self)
+        self.journeys = AsyncJourneys(self)
 
     async def _execute(self, endpoint: Endpoint[T]) -> T:
         cached = self._cached(endpoint)

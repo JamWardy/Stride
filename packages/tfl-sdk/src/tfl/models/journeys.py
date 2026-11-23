@@ -1,0 +1,93 @@
+"""Models for ``/Journey/JourneyResults``."""
+
+from __future__ import annotations
+
+from pydantic import Field
+
+from ._base import OptionalStr, OptionalTflDatetime, TflDatetime, TflModel
+from .lines import Disruption
+from .stops import LineRef
+
+
+class Place(TflModel):
+    """A place: a journey leg's start or end, or a candidate in a disambiguation list.
+
+    Only ``name``, ``lat`` and ``lon`` are always present. Stop points also carry
+    ``naptan_id`` and ``ics_code``; ``platform_name`` comes only on journey legs, and
+    ``modes``/``stop_type`` only on disambiguation candidates.
+    """
+
+    name: str = Field(alias="commonName")
+    lat: float
+    lon: float
+    place_type: OptionalStr = None
+    naptan_id: OptionalStr = None
+    ics_code: OptionalStr = None
+    platform_name: OptionalStr = None
+    stop_type: OptionalStr = None
+    modes: list[str] = Field(default_factory=list)
+
+
+class LocationOption(TflModel):
+    """One candidate TfL offers when a journey's start, end or via point is ambiguous."""
+
+    parameter_value: str
+    """Pass this back as ``from_``/``to`` to plan with this candidate."""
+    place: Place
+    match_quality: int | None = None
+
+
+class Instruction(TflModel):
+    """Human-readable directions for a leg."""
+
+    summary: str
+    detailed: OptionalStr = None
+
+
+class ModeRef(TflModel):
+    """The transport mode of a leg, e.g. ``tube`` or ``walking``."""
+
+    id: str
+    name: str
+
+
+class RouteOption(TflModel):
+    """A line (and direction) that can be used for a leg."""
+
+    name: str
+    directions: list[str] = Field(default_factory=list)
+    direction: OptionalStr = None
+    line: LineRef | None = Field(default=None, alias="lineIdentifier")
+
+
+class Leg(TflModel):
+    """One part of a journey on a single mode."""
+
+    duration_minutes: int = Field(alias="duration")
+    instruction: Instruction
+    mode: ModeRef
+    departure_time: TflDatetime
+    arrival_time: TflDatetime
+    departure_point: Place
+    arrival_point: Place
+    scheduled_departure_time: OptionalTflDatetime = None
+    scheduled_arrival_time: OptionalTflDatetime = None
+    route_options: list[RouteOption] = Field(default_factory=list)
+    disruptions: list[Disruption] = Field(default_factory=list)
+    is_disrupted: bool = False
+
+
+class Fare(TflModel):
+    """The fare for a whole journey."""
+
+    total_cost_pence: int = Field(alias="totalCost")
+
+
+class Journey(TflModel):
+    """One journey option from the journey planner."""
+
+    start_time: TflDatetime = Field(alias="startDateTime")
+    arrival_time: TflDatetime = Field(alias="arrivalDateTime")
+    duration_minutes: int = Field(alias="duration")
+    legs: list[Leg] = Field(default_factory=list)
+    fare: Fare | None = None

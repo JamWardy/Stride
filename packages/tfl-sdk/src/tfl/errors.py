@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .models.journeys import LocationOption
 
 
 class TflError(Exception):
@@ -61,3 +64,27 @@ class TflRateLimitError(TflError):
 
 class TflServerError(TflError):
     """TfL returned a 5xx error."""
+
+
+class TflAmbiguousLocationError(TflError):
+    """The journey planner could not tell which place was meant (HTTP 300).
+
+    Each list holds TfL's candidates for that point, best match first; it is empty when that
+    point was understood. Pass a candidate's ``parameter_value`` back to ``journeys.plan``.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        body: Any = None,
+        url: str | None = None,
+        from_options: list[LocationOption] | None = None,
+        to_options: list[LocationOption] | None = None,
+        via_options: list[LocationOption] | None = None,
+    ) -> None:
+        super().__init__(message, status_code=status_code, body=body, url=url)
+        self.from_options = from_options or []
+        self.to_options = to_options or []
+        self.via_options = via_options or []

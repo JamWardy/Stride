@@ -29,12 +29,29 @@ Async: use `AsyncTflClient` with `async with` and `await` — same methods.
 | `stops.nearby(lat, lon, radius_m=800, stop_types=("NaptanMetroStation",))` | `/StopPoint?lat&lon` |
 | `stops.get(stop_id)` | `/StopPoint/{id}` |
 | `stops.arrivals(stop_id)` | `/StopPoint/{id}/Arrivals` |
+| `lines.status(modes=("tube",))` | `/Line/Mode/{modes}/Status` |
+| `lines.disruptions(line_id)` | `/Line/{id}/Disruption` |
+| `journeys.plan(from_, to, *, depart_at=None)` | `/Journey/JourneyResults/{from}/to/{to}` |
 
 ```python
 client.stops.search("Oxford Circus")[0].id  # '940GZZLUOXC'
 [s.name for s in client.stops.nearby(51.515, -0.141)]  # each has .distance_m
 [l.name for l in client.stops.get("940GZZLUOXC").lines]  # ['Bakerloo', 'Central', 'Victoria']
 client.stops.arrivals("940GZZLUOXC")[0].minutes_away  # sorted soonest first
+[(l.name, l.statuses[0].description) for l in client.lines.status()]  # ('Central', 'Minor Delays')
+[d.description for d in client.lines.disruptions("central")]
+client.journeys.plan("940GZZLUOXC", "940GZZLUBNK")[0].duration_minutes  # 8
+```
+
+`journeys.plan` accepts stop ids, place names, postcodes or `"lat,lon"`. If a place is ambiguous it raises `TflAmbiguousLocationError`; pick a candidate and plan again:
+
+```python
+try:
+    client.journeys.plan("oxford", "bank")
+except TflAmbiguousLocationError as e:
+    best = e.to_options[0]  # also .from_options, .via_options
+    print(best.place.name)  # 'City of London, Bank'
+    client.journeys.plan("940GZZLUOXC", best.parameter_value)
 ```
 
 ## Options
@@ -49,4 +66,4 @@ TflClient(app_key=None, timeout=10.0, max_retries=3, cache_ttl=None)
 ## Errors
 
 All inherit `TflError` (with `.status_code`, `.body`, `.url`):
-`TflAuthError` (401/403), `TflNotFoundError` (404), `TflRateLimitError` (429), `TflServerError` (5xx).
+`TflAuthError` (401/403), `TflNotFoundError` (404), `TflRateLimitError` (429), `TflServerError` (5xx), `TflAmbiguousLocationError` (300 from the journey planner).

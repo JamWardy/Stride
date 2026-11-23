@@ -42,12 +42,17 @@ ParamValue = str | int | float
 
 @dataclass(frozen=True)
 class Endpoint(Generic[T]):
-    """A single API call: where to send it and how to turn the JSON into models."""
+    """A single API call: where to send it and how to turn the JSON into models.
+
+    ``parse_error`` lets an endpoint turn a non-2xx response into its own error type (e.g.
+    the journey planner's 300); returning ``None`` falls back to the standard mapping.
+    """
 
     path: str
     parse: Callable[[Any], T]
     params: Mapping[str, ParamValue] = field(default_factory=dict)
     cacheable: bool = False
+    parse_error: Callable[[httpx.Response], TflError | None] | None = None
 
 
 # --------------------------------------------------------------------------- retries
@@ -111,14 +116,23 @@ def _redacted_url(response: httpx.Response) -> str:
     return str(response.request.url.copy_remove_param("app_key"))
 
 
+def error_details(response: httpx.Response) -> dict[str, Any]:
+    """Return the ``status_code``, decoded ``body`` and redacted ``url`` for a TflError."""
+    return {
+        "status_code": response.status_code,
+        "body": _decode_body(response),
+        "url": _redacted_url(response),
+    }
+
+
 def error_from_response(response: httpx.Response) -> TflError:
     """Map a non-2xx response to the matching :class:`TflError` subclass."""
-    body = _decode_body(response)
+    kwargs = error_details(response)
+    body = kwargs["body"]
     status = response.status_code
     message = body.get("message") if isinstance(body, dict) else None
     if not isinstance(message, str) or not message:
         message = response.reason_phrase or "TfL API error"
-    kwargs: dict[str, Any] = {"status_code": status, "body": body, "url": _redacted_url(response)}
 
     if status in (401, 403):
         return TflAuthError(message, **kwargs)
@@ -230,7 +244,8 @@ class BaseClient:
     def _finish(self, endpoint: Endpoint[T], response: httpx.Response) -> T:
         """Turn a final response into parsed models or raise the matching error."""
         if not response.is_success:
-            raise error_from_response(response)
+            custom = endpoint.parse_error(response) if endpoint.parse_error else None
+            raise custom or error_from_response(response)
         try:
             raw = response.json()
         except ValueError as exc:

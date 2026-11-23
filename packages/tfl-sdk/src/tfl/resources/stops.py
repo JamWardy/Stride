@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
-from urllib.parse import quote
 
 from pydantic import TypeAdapter
 
 from .._core import Endpoint, ParamValue
 from ..models.stops import Arrival, NearbyStop, Stop, StopSummary
+from ._params import csv, segment
 
 if TYPE_CHECKING:
     from ..client import AsyncTflClient, TflClient
@@ -17,16 +17,6 @@ if TYPE_CHECKING:
 _stop_summaries = TypeAdapter(list[StopSummary])
 _nearby_stops = TypeAdapter(list[NearbyStop])
 _arrivals = TypeAdapter(list[Arrival])
-
-
-def _segment(value: str) -> str:
-    """Percent-encode a value used as a single URL path segment."""
-    return quote(value, safe="")
-
-
-def _csv(values: str | Sequence[str]) -> str:
-    """Join values with commas; a single string is treated as one value, not as characters."""
-    return values if isinstance(values, str) else ",".join(values)
 
 
 # --------------------------------------------------------------------------- endpoint specs
@@ -45,8 +35,8 @@ def _parse_arrivals(raw: Any) -> list[Arrival]:
 
 
 def _search_endpoint(query: str, modes: str | Sequence[str]) -> Endpoint[list[StopSummary]]:
-    params = {"modes": _csv(modes)} if modes else {}
-    return Endpoint(f"/StopPoint/Search/{_segment(query)}", _parse_search, params, cacheable=True)
+    params = {"modes": csv(modes)} if modes else {}
+    return Endpoint(f"/StopPoint/Search/{segment(query)}", _parse_search, params, cacheable=True)
 
 
 def _nearby_endpoint(
@@ -56,17 +46,17 @@ def _nearby_endpoint(
         "lat": lat,
         "lon": lon,
         "radius": radius_m,
-        "stopTypes": _csv(stop_types),
+        "stopTypes": csv(stop_types),
     }
     return Endpoint("/StopPoint", _parse_nearby, params)
 
 
 def _get_endpoint(stop_id: str) -> Endpoint[Stop]:
-    return Endpoint(f"/StopPoint/{_segment(stop_id)}", Stop.model_validate, cacheable=True)
+    return Endpoint(f"/StopPoint/{segment(stop_id)}", Stop.model_validate, cacheable=True)
 
 
 def _arrivals_endpoint(stop_id: str) -> Endpoint[list[Arrival]]:
-    return Endpoint(f"/StopPoint/{_segment(stop_id)}/Arrivals", _parse_arrivals)
+    return Endpoint(f"/StopPoint/{segment(stop_id)}/Arrivals", _parse_arrivals)
 
 
 # --------------------------------------------------------------------------- resources
