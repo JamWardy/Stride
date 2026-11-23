@@ -10,8 +10,8 @@ A phone-first, door-to-door journey planner timed at your own walking speed. It 
 ## Run it
 
 ```bash
-make install   # uv sync + npm install
-make dev       # API on :8000, web on :5173; Ctrl-C stops both
+just install   # uv sync + npm install
+just dev       # API on :8000, web on :5173; Ctrl-C stops both
 ```
 
 Open http://localhost:5173.
@@ -37,6 +37,6 @@ Open http://localhost:5173.
 
 ## Other commands
 
-- `make types` regenerates `apps/web/src/api/schema.d.ts` from FastAPI's OpenAPI schema. Run it after changing an API response.
-- `make test` runs the Python and frontend tests.
-- `make lint` runs ruff, mypy and tsc.
+- `just types` regenerates `apps/web/src/api/schema.d.ts` from FastAPI's OpenAPI schema. Run it after changing an API response.
+- `just test` runs the Python and frontend tests.
+- `just lint` runs ruff, mypy and tsc.

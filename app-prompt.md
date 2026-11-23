@@ -38,5 +38,5 @@ Pure logic, kept separate from fetching like the existing planner. For each TfL 
 - Simple styling (plain CSS); no component library.
 
 ### Dev
-- One command runs both (`make dev`).
+- One command runs both (`just dev`).
 - Tests: tfl-walk journey maths with hand-built data; SDK methods with recorded fixtures; API endpoint tests with tfl-walk mocked; a few frontend component tests.
