@@ -1,3 +1,4 @@
+import { Footprints, LocateFixed } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 import type { JourneysQuery, PlaceChoice, Risk } from "./api/client";
 import { JourneyCard } from "./components/JourneyCard";
@@ -59,47 +60,57 @@ export function App() {
 
   return (
     <main>
-      <header>
-        <h1>Walk or wait?</h1>
-        <p className="tagline">Door to door, at your walking speed</p>
+      <header className="brand">
+        <span className="tile tile-salmon" aria-hidden="true">
+          <Footprints size={22} strokeWidth={2.5} />
+        </span>
+        <div>
+          <h1>
+            Walk or <span className="accent">wait?</span>
+          </h1>
+          <p className="tagline">Door to door, at your walking speed</p>
+        </div>
       </header>
 
-      <form className="where" onSubmit={submit}>
-        <div className="from">
+      <section className="panel">
+        <form className="where" onSubmit={submit}>
+          <div className="from">
+            <PlaceInput
+              id="from"
+              label="From"
+              placeholder={from ? from.label : "A place, postcode or station"}
+              text={fromText}
+              onText={setFromText}
+              onSelect={setFrom}
+            />
+            <button type="button" className="btn btn-secondary locate" onClick={locateMe} disabled={locating}>
+              <LocateFixed size={18} strokeWidth={2.5} aria-hidden="true" />
+              {locating ? "Finding you…" : "Use my location"}
+            </button>
+            {locateError && <p className="error">{locateError}</p>}
+          </div>
           <PlaceInput
-            id="from"
-            label="From"
-            placeholder={from ? from.label : "A place, postcode or station"}
-            text={fromText}
-            onText={setFromText}
-            onSelect={setFrom}
+            id="to"
+            label="Where to?"
+            placeholder={to ? to.label : "e.g. Oxford Circus"}
+            text={toText}
+            onText={setToText}
+            onSelect={setTo}
           />
-          <button type="button" className="locate" onClick={locateMe} disabled={locating}>
-            {locating ? "Finding you…" : "Use my location"}
+          <button type="submit" className="btn btn-primary">
+            Go
           </button>
-          {locateError && <p className="error">{locateError}</p>}
-        </div>
-        <PlaceInput
-          id="to"
-          label="Where to?"
-          placeholder={to ? to.label : "e.g. Oxford Circus"}
-          text={toText}
-          onText={setToText}
-          onSelect={setTo}
-        />
-        <button type="submit" className="go">
-          Go
-        </button>
-      </form>
+        </form>
 
-      <Settings speed={speed} onSpeed={setSpeed} risk={risk} onRisk={setRisk} />
+        <Settings speed={speed} onSpeed={setSpeed} risk={risk} onRisk={setRisk} />
+      </section>
 
       {to && !from && <p className="empty">Where are you starting from? Use your location or type a place.</p>}
 
       {query && (
         <section className="results" aria-live="polite">
           <div className="status">
-            <span>
+            <span className="route">
               {from?.label} → {to?.label}
             </span>
             <span>{loading ? "Updating…" : updatedAt !== null ? `Updated ${agoText(now - updatedAt)}` : ""}</span>
