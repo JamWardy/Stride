@@ -10,6 +10,7 @@ resolution-markers = [
 members = [
     "speedy-tfl",
     "tfl-sdk",
+    "tfl-walk",
 ]
 
 [[package]]
@@ -758,6 +759,7 @@ version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
     { name = "tfl-sdk" },
+    { name = "tfl-walk" },
 ]
 
 [package.dev-dependencies]
@@ -771,7 +773,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "tfl-sdk", editable = "packages/tfl-sdk" }]
+requires-dist = [
+    { name = "tfl-sdk", editable = "packages/tfl-sdk" },
+    { name = "tfl-walk", editable = "packages/tfl-walk" },
+]
 
 [package.metadata.requires-dev]
 dev = [
@@ -799,6 +804,17 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.6" },
     { name = "tzdata", marker = "sys_platform == 'win32'" },
 ]
+
+[[package]]
+name = "tfl-walk"
+version = "0.1.0"
+source = { editable = "packages/tfl-walk" }
+dependencies = [
+    { name = "tfl-sdk" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "tfl-sdk", editable = "packages/tfl-sdk" }]
 
 [[package]]
 name = "typing-extensions"

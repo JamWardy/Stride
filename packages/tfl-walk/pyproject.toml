@@ -1,0 +1,17 @@
+[project]
+name = "tfl-walk"
+version = "0.1.0"
+description = "Walk or wait? Find the London trains you can still catch on foot, built on tfl-sdk"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["tfl-sdk"]
+
+[tool.uv.sources]
+tfl-sdk = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tfl_walk"]
