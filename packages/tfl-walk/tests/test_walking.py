@@ -18,7 +18,11 @@ NOW = datetime(2026, 11, 23, 8, 0, tzinfo=UTC)
 
 
 def arrival(
-    seconds: int, line: str = "victoria", direction: str | None = "outbound", n: int = 0
+    seconds: int,
+    line: str = "victoria",
+    direction: str | None = "outbound",
+    n: int = 0,
+    destination_id: str | None = None,
 ) -> Arrival:
     return Arrival(
         id=f"{line}-{direction}-{seconds}-{n}",
@@ -27,6 +31,7 @@ def arrival(
         expected_arrival=NOW + timedelta(seconds=seconds),
         time_to_station=seconds,
         direction=direction,
+        destination_naptan_id=destination_id,
     )
 
 
@@ -76,6 +81,17 @@ def test_catchable_exactly_at_risk_margin(risk: str, margin: int) -> None:
     assert opt.margin_seconds == 0
     assert opt.can_make_it
     assert catchable_options(station(), [arrival(needed - 1)], safety) == []
+
+
+def test_trains_terminating_at_the_station_are_skipped() -> None:
+    # Seen live at Bank DLR: trains to "Bank DLR Station" arriving at Bank DLR.
+    arrivals = [
+        arrival(900, destination_id="OXC"),  # terminates here
+        arrival(900, destination_id="BRX", n=1),
+        arrival(900, n=2),  # no destination given: kept
+    ]
+    options = catchable_options(station(id_="OXC"), arrivals, 0)
+    assert len(options) == 2
 
 
 def test_option_times() -> None:

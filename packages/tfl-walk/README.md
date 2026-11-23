@@ -25,6 +25,7 @@ Async: `AsyncWalkPlanner` with an `AsyncTflClient`; it fetches stations' arrival
 | Entry buffer | 2 min street-to-platform (override per station with `entry_buffers`) |
 | Catchable | walk + buffer + safety margin ≤ train's time to station |
 | Safety margin | `risk`: low 90 s, medium 45 s, high 0 s |
+| Terminating trains | skipped: a train ending at this station goes nowhere from it |
 | Output | earliest catchable train per station, line and direction, soonest first |
 
 Each `WalkOption` has `walk_minutes`, `wait_minutes` (time on the platform), `margin_seconds` (slack beyond the safety margin), `departure_time` and `can_make_it`.

@@ -67,10 +67,13 @@ def catchable_options(
     """Return an option for each arrival the walker can reach in time.
 
     A train is catchable when ``walk + entry_buffer + safety_margin <= time_to_station``.
+    Trains that terminate at this station are skipped: they go nowhere from here.
     """
     reach_platform_s = station.walk_seconds + station.entry_buffer_seconds
     options = []
     for arrival in arrivals:
+        if arrival.destination_naptan_id == station.id:
+            continue
         wait = arrival.time_to_station - reach_platform_s
         margin = wait - safety_margin_s
         if margin < 0:
