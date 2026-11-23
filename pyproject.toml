@@ -28,8 +28,8 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-testpaths = ["packages/tfl-sdk/tests", "packages/tfl-walk/tests"]
-pythonpath = ["packages/tfl-sdk/tests"]
+testpaths = ["packages/tfl-sdk/tests", "packages/tfl-walk/tests", "examples"]
+pythonpath = ["packages/tfl-sdk/tests", "examples"]
 addopts = "--import-mode=importlib"
 
 [tool.ruff]
@@ -42,6 +42,7 @@ ignore = ["D100", "D104", "D105", "D107", "D203", "D213", "ANN401"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["D", "ANN"]
+"examples/test_*.py" = ["D", "ANN"]
 
 [tool.mypy]
 strict = true
@@ -52,6 +53,7 @@ files = [
     "packages/tfl-sdk/tests",
     "packages/tfl-walk/src",
     "packages/tfl-walk/tests",
+    "examples",
 ]
-mypy_path = "packages/tfl-sdk/tests"
+mypy_path = "packages/tfl-sdk/tests:examples"
 explicit_package_bases = true
