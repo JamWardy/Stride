@@ -1,19 +1,20 @@
 [project]
 name = "speedy-tfl"
 version = "0.0.0"
-description = "Workspace root for tfl-sdk and tfl-walk"
+description = "Workspace root for tfl-sdk, tfl-walk and the web app API"
 requires-python = ">=3.11"
-dependencies = ["tfl-sdk", "tfl-walk"]
+dependencies = ["tfl-sdk", "tfl-walk", "speedy-api"]
 
 [tool.uv]
 package = false
 
 [tool.uv.workspace]
-members = ["packages/*"]
+members = ["packages/*", "apps/api"]
 
 [tool.uv.sources]
 tfl-sdk = { workspace = true }
 tfl-walk = { workspace = true }
+speedy-api = { workspace = true }
 
 [dependency-groups]
 dev = [
@@ -28,7 +29,7 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-testpaths = ["packages/tfl-sdk/tests", "packages/tfl-walk/tests", "examples"]
+testpaths = ["packages/tfl-sdk/tests", "packages/tfl-walk/tests", "apps/api/tests", "examples"]
 pythonpath = ["packages/tfl-sdk/tests", "examples"]
 addopts = "--import-mode=importlib"
 
@@ -53,7 +54,9 @@ files = [
     "packages/tfl-sdk/tests",
     "packages/tfl-walk/src",
     "packages/tfl-walk/tests",
+    "apps/api/src",
+    "apps/api/tests",
     "examples",
 ]
-mypy_path = "packages/tfl-sdk/tests:examples"
+mypy_path = "packages/tfl-sdk/tests:examples:apps/api/src"
 explicit_package_bases = true

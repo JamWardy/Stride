@@ -1,0 +1,22 @@
+[project]
+name = "speedy-api"
+version = "0.1.0"
+description = "HTTP API over tfl-walk for the speedy-tfl web app"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "tfl-sdk",
+    "tfl-walk",
+]
+
+[tool.uv.sources]
+tfl-sdk = { workspace = true }
+tfl-walk = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/speedy_api"]
