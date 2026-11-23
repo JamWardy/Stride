@@ -5,33 +5,37 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/options": {
+    "/journeys": {
       "get": {
-        "summary": "Options",
-        "description": "Trains the walker can still catch from ``lat``/``lon``, soonest first.",
-        "operationId": "options_options_get",
+        "summary": "Journeys",
+        "description": "Ways to get from ``from`` to ``to`` leaving now, timed at the walker's pace.",
+        "operationId": "journeys_journeys_get",
         "parameters": [
           {
-            "name": "lat",
+            "name": "from",
             "in": "query",
             "required": true,
             "schema": {
-              "type": "number",
-              "maximum": 90,
-              "minimum": -90,
-              "title": "Lat"
-            }
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "\"lat,lon\" or a place",
+              "title": "From"
+            },
+            "description": "\"lat,lon\" or a place"
           },
           {
-            "name": "lon",
+            "name": "to",
             "in": "query",
             "required": true,
             "schema": {
-              "type": "number",
-              "maximum": 180,
-              "minimum": -180,
-              "title": "Lon"
-            }
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200,
+              "description": "\"lat,lon\" or a place",
+              "title": "To"
+            },
+            "description": "\"lat,lon\" or a place"
           },
           {
             "name": "speed_kmh",
@@ -46,20 +50,6 @@
               "title": "Speed Kmh"
             },
             "description": "Walking speed"
-          },
-          {
-            "name": "max_walk",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "number",
-              "maximum": 30,
-              "exclusiveMinimum": 0,
-              "description": "Longest walk, minutes",
-              "default": 12,
-              "title": "Max Walk"
-            },
-            "description": "Longest walk, minutes"
           },
           {
             "name": "risk",
@@ -83,11 +73,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/WalkOption"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/JourneysFound"
+                    },
+                    {
+                      "$ref": "#/components/schemas/AmbiguousPlaces"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "kind",
+                    "mapping": {
+                      "journeys": "#/components/schemas/JourneysFound",
+                      "ambiguous": "#/components/schemas/AmbiguousPlaces"
+                    }
                   },
-                  "title": "Response Options Options Get"
+                  "title": "Response Journeys Journeys Get"
                 }
               }
             }
@@ -105,11 +106,11 @@
         }
       }
     },
-    "/stations/search": {
+    "/places": {
       "get": {
-        "summary": "Search Stations",
-        "description": "Stations matching ``q``, best match first.",
-        "operationId": "search_stations_stations_search_get",
+        "summary": "Suggest Places",
+        "description": "Stations first, then Google's places, for type-ahead in the From and To boxes.",
+        "operationId": "suggest_places_places_get",
         "parameters": [
           {
             "name": "q",
@@ -117,10 +118,23 @@
             "required": true,
             "schema": {
               "type": "string",
-              "minLength": 1,
+              "minLength": 2,
               "maxLength": 100,
               "title": "Q"
             }
+          },
+          {
+            "name": "session",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "description": "One token per search, from the browser",
+              "title": "Session"
+            },
+            "description": "One token per search, from the browser"
           }
         ],
         "responses": {
@@ -131,9 +145,75 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/Station"
+                    "oneOf": [
+                      {
+                        "$ref": "#/components/schemas/StationSuggestion"
+                      },
+                      {
+                        "$ref": "#/components/schemas/PlaceSuggestion"
+                      }
+                    ],
+                    "discriminator": {
+                      "propertyName": "kind",
+                      "mapping": {
+                        "station": "#/components/schemas/StationSuggestion",
+                        "place": "#/components/schemas/PlaceSuggestion"
+                      }
+                    }
                   },
-                  "title": "Response Search Stations Stations Search Get"
+                  "title": "Response Suggest Places Places Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/places/{place_id}": {
+      "get": {
+        "summary": "Resolve Place",
+        "description": "Return the chosen place as ``\"lat,lon\"``, ending the Google autocomplete session.",
+        "operationId": "resolve_place_places__place_id__get",
+        "parameters": [
+          {
+            "name": "place_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,300}$",
+              "title": "Place Id"
+            }
+          },
+          {
+            "name": "session",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "title": "Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolvedPlace"
                 }
               }
             }
@@ -154,6 +234,67 @@
   },
   "components": {
     "schemas": {
+      "AmbiguousPlaces": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "ambiguous",
+            "title": "Kind",
+            "default": "ambiguous"
+          },
+          "from_options": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceChoice"
+            },
+            "type": "array",
+            "title": "From Options"
+          },
+          "to_options": {
+            "items": {
+              "$ref": "#/components/schemas/PlaceChoice"
+            },
+            "type": "array",
+            "title": "To Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_options",
+          "to_options"
+        ],
+        "title": "AmbiguousPlaces",
+        "description": "TfL couldn't tell which place was meant; pick one per non-empty list and ask again."
+      },
+      "ChangeLeg": {
+        "properties": {
+          "stop_id": {
+            "type": "string",
+            "title": "Stop Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "seconds": {
+            "type": "number",
+            "title": "Seconds"
+          },
+          "kind": {
+            "type": "string",
+            "const": "change",
+            "title": "Kind",
+            "default": "change"
+          }
+        },
+        "type": "object",
+        "required": [
+          "stop_id",
+          "name",
+          "seconds"
+        ],
+        "title": "ChangeLeg",
+        "description": "Changing trains inside a station (platform to platform)."
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -167,34 +308,286 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
-      "Station": {
+      "JourneyOption": {
         "properties": {
-          "id": {
+          "leave_by": {
             "type": "string",
-            "title": "Id"
+            "format": "date-time",
+            "title": "Leave By"
+          },
+          "arrival_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Arrival Time"
+          },
+          "legs": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/WalkLeg"
+                },
+                {
+                  "$ref": "#/components/schemas/ChangeLeg"
+                },
+                {
+                  "$ref": "#/components/schemas/TrainLeg"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Legs"
+          },
+          "margin_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin Seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "leave_by",
+          "arrival_time",
+          "legs",
+          "margin_seconds"
+        ],
+        "title": "JourneyOption",
+        "description": "One way to get there, timed for this walker, leaving now.\n\n``leave_by`` is the latest time to set off and still catch the first train.\n``margin_seconds`` is the smallest margin across every train to catch, i.e. how tight\nthe tightest connection is; ``None`` for a walk with no trains."
+      },
+      "JourneysFound": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "journeys",
+            "title": "Kind",
+            "default": "journeys"
+          },
+          "journeys": {
+            "items": {
+              "$ref": "#/components/schemas/JourneyOption"
+            },
+            "type": "array",
+            "title": "Journeys"
+          }
+        },
+        "type": "object",
+        "required": [
+          "journeys"
+        ],
+        "title": "JourneysFound",
+        "description": "Ways to get there, earliest arrival first; empty when TfL finds no route."
+      },
+      "PlaceChoice": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
           },
           "name": {
             "type": "string",
             "title": "Name"
           },
-          "lat": {
-            "type": "number",
-            "title": "Lat"
-          },
-          "lon": {
-            "type": "number",
-            "title": "Lon"
+          "place_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place Type"
           }
         },
         "type": "object",
         "required": [
-          "id",
+          "value",
           "name",
-          "lat",
-          "lon"
+          "place_type"
         ],
-        "title": "Station",
-        "description": "A station the user can pick as their starting point."
+        "title": "PlaceChoice",
+        "description": "One of TfL's candidates for an ambiguous place. Send ``value`` back as from/to."
+      },
+      "PlaceSuggestion": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "place",
+            "title": "Kind",
+            "default": "place"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "place_id": {
+            "type": "string",
+            "title": "Place Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "detail",
+          "place_id"
+        ],
+        "title": "PlaceSuggestion",
+        "description": "A Google place; resolve ``place_id`` with ``/places/{place_id}`` to get its value."
+      },
+      "ResolvedPlace": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "ResolvedPlace",
+        "description": "A chosen place as ``\"lat,lon\"``, ready for ``/journeys``."
+      },
+      "StationSuggestion": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "station",
+            "title": "Kind",
+            "default": "station"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "value"
+        ],
+        "title": "StationSuggestion",
+        "description": "A TfL station; ``value`` can be sent straight to ``/journeys``."
+      },
+      "TrainLeg": {
+        "properties": {
+          "line_id": {
+            "type": "string",
+            "title": "Line Id"
+          },
+          "line_name": {
+            "type": "string",
+            "title": "Line Name"
+          },
+          "from_stop_id": {
+            "type": "string",
+            "title": "From Stop Id"
+          },
+          "from_name": {
+            "type": "string",
+            "title": "From Name"
+          },
+          "to_stop_id": {
+            "type": "string",
+            "title": "To Stop Id"
+          },
+          "to_name": {
+            "type": "string",
+            "title": "To Name"
+          },
+          "destination_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Name"
+          },
+          "platform_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform Name"
+          },
+          "departure_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Departure Time"
+          },
+          "arrival_time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Arrival Time"
+          },
+          "wait_seconds": {
+            "type": "number",
+            "title": "Wait Seconds"
+          },
+          "margin_seconds": {
+            "type": "number",
+            "title": "Margin Seconds"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "live",
+              "timetable"
+            ],
+            "title": "Source"
+          },
+          "kind": {
+            "type": "string",
+            "const": "train",
+            "title": "Kind",
+            "default": "train"
+          }
+        },
+        "type": "object",
+        "required": [
+          "line_id",
+          "line_name",
+          "from_stop_id",
+          "from_name",
+          "to_stop_id",
+          "to_name",
+          "destination_name",
+          "platform_name",
+          "departure_time",
+          "arrival_time",
+          "wait_seconds",
+          "margin_seconds",
+          "source"
+        ],
+        "title": "TrainLeg",
+        "description": "A train to catch.\n\n``wait_seconds`` is the time on the platform before it comes. ``margin_seconds`` is the\nslack left after the risk setting's safety margin. ``source`` says whether the train\ncame from live arrivals or from TfL's timetable."
       },
       "ValidationError": {
         "properties": {
@@ -236,91 +629,50 @@
         ],
         "title": "ValidationError"
       },
-      "WalkOption": {
+      "WalkLeg": {
         "properties": {
-          "station_id": {
+          "from_name": {
             "type": "string",
-            "title": "Station Id"
+            "title": "From Name"
           },
-          "station_name": {
+          "to_name": {
             "type": "string",
-            "title": "Station Name"
+            "title": "To Name"
           },
-          "line_id": {
-            "type": "string",
-            "title": "Line Id"
-          },
-          "line_name": {
-            "type": "string",
-            "title": "Line Name"
-          },
-          "direction": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Direction"
-          },
-          "destination_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Destination Name"
-          },
-          "platform_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Platform Name"
-          },
-          "departure_time": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Departure Time"
-          },
-          "walk_seconds": {
+          "distance_m": {
             "type": "number",
-            "title": "Walk Seconds"
+            "title": "Distance M"
           },
-          "wait_seconds": {
+          "street_seconds": {
             "type": "number",
-            "title": "Wait Seconds"
+            "title": "Street Seconds"
           },
-          "margin_seconds": {
+          "station_seconds": {
             "type": "number",
-            "title": "Margin Seconds"
+            "title": "Station Seconds"
+          },
+          "seconds": {
+            "type": "number",
+            "title": "Seconds"
+          },
+          "kind": {
+            "type": "string",
+            "const": "walk",
+            "title": "Kind",
+            "default": "walk"
           }
         },
         "type": "object",
         "required": [
-          "station_id",
-          "station_name",
-          "line_id",
-          "line_name",
-          "direction",
-          "destination_name",
-          "platform_name",
-          "departure_time",
-          "walk_seconds",
-          "wait_seconds",
-          "margin_seconds"
+          "from_name",
+          "to_name",
+          "distance_m",
+          "street_seconds",
+          "station_seconds",
+          "seconds"
         ],
-        "title": "WalkOption",
-        "description": "A train the walker can catch by leaving now.\n\n``wait_seconds`` is the time spent on the platform before the train arrives.\n``margin_seconds`` is the slack left after the risk setting's safety margin, i.e. how\nmuch later the walker could leave and still make it at their chosen risk."
+        "title": "WalkLeg",
+        "description": "A walk: along streets, and through a station at either end if there is one."
       }
     }
   }

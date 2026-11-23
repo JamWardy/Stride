@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/options": {
+    "/journeys": {
         parameters: {
             query?: never;
             header?: never;
@@ -12,10 +12,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Options
-         * @description Trains the walker can still catch from ``lat``/``lon``, soonest first.
+         * Journeys
+         * @description Ways to get from ``from`` to ``to`` leaving now, timed at the walker's pace.
          */
-        get: operations["options_options_get"];
+        get: operations["journeys_journeys_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -24,7 +24,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/stations/search": {
+    "/places": {
         parameters: {
             query?: never;
             header?: never;
@@ -32,10 +32,30 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Search Stations
-         * @description Stations matching ``q``, best match first.
+         * Suggest Places
+         * @description Stations first, then Google's places, for type-ahead in the From and To boxes.
          */
-        get: operations["search_stations_stations_search_get"];
+        get: operations["suggest_places_places_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/places/{place_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resolve Place
+         * @description Return the chosen place as ``"lat,lon"``, ending the Google autocomplete session.
+         */
+        get: operations["resolve_place_places__place_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -48,24 +68,183 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AmbiguousPlaces
+         * @description TfL couldn't tell which place was meant; pick one per non-empty list and ask again.
+         */
+        AmbiguousPlaces: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "ambiguous";
+            /** From Options */
+            from_options: components["schemas"]["PlaceChoice"][];
+            /** To Options */
+            to_options: components["schemas"]["PlaceChoice"][];
+        };
+        /**
+         * ChangeLeg
+         * @description Changing trains inside a station (platform to platform).
+         */
+        ChangeLeg: {
+            /** Stop Id */
+            stop_id: string;
+            /** Name */
+            name: string;
+            /** Seconds */
+            seconds: number;
+            /**
+             * Kind
+             * @default change
+             * @constant
+             */
+            kind: "change";
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
         /**
-         * Station
-         * @description A station the user can pick as their starting point.
+         * JourneyOption
+         * @description One way to get there, timed for this walker, leaving now.
+         *
+         *     ``leave_by`` is the latest time to set off and still catch the first train.
+         *     ``margin_seconds`` is the smallest margin across every train to catch, i.e. how tight
+         *     the tightest connection is; ``None`` for a walk with no trains.
          */
-        Station: {
-            /** Id */
-            id: string;
+        JourneyOption: {
+            /**
+             * Leave By
+             * Format: date-time
+             */
+            leave_by: string;
+            /**
+             * Arrival Time
+             * Format: date-time
+             */
+            arrival_time: string;
+            /** Legs */
+            legs: (components["schemas"]["WalkLeg"] | components["schemas"]["ChangeLeg"] | components["schemas"]["TrainLeg"])[];
+            /** Margin Seconds */
+            margin_seconds: number | null;
+        };
+        /**
+         * JourneysFound
+         * @description Ways to get there, earliest arrival first; empty when TfL finds no route.
+         */
+        JourneysFound: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "journeys";
+            /** Journeys */
+            journeys: components["schemas"]["JourneyOption"][];
+        };
+        /**
+         * PlaceChoice
+         * @description One of TfL's candidates for an ambiguous place. Send ``value`` back as from/to.
+         */
+        PlaceChoice: {
+            /** Value */
+            value: string;
             /** Name */
             name: string;
-            /** Lat */
-            lat: number;
-            /** Lon */
-            lon: number;
+            /** Place Type */
+            place_type: string | null;
+        };
+        /**
+         * PlaceSuggestion
+         * @description A Google place; resolve ``place_id`` with ``/places/{place_id}`` to get its value.
+         */
+        PlaceSuggestion: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "place";
+            /** Name */
+            name: string;
+            /** Detail */
+            detail: string | null;
+            /** Place Id */
+            place_id: string;
+        };
+        /**
+         * ResolvedPlace
+         * @description A chosen place as ``"lat,lon"``, ready for ``/journeys``.
+         */
+        ResolvedPlace: {
+            /** Value */
+            value: string;
+        };
+        /**
+         * StationSuggestion
+         * @description A TfL station; ``value`` can be sent straight to ``/journeys``.
+         */
+        StationSuggestion: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            kind: "station";
+            /** Name */
+            name: string;
+            /** Value */
+            value: string;
+        };
+        /**
+         * TrainLeg
+         * @description A train to catch.
+         *
+         *     ``wait_seconds`` is the time on the platform before it comes. ``margin_seconds`` is the
+         *     slack left after the risk setting's safety margin. ``source`` says whether the train
+         *     came from live arrivals or from TfL's timetable.
+         */
+        TrainLeg: {
+            /** Line Id */
+            line_id: string;
+            /** Line Name */
+            line_name: string;
+            /** From Stop Id */
+            from_stop_id: string;
+            /** From Name */
+            from_name: string;
+            /** To Stop Id */
+            to_stop_id: string;
+            /** To Name */
+            to_name: string;
+            /** Destination Name */
+            destination_name: string | null;
+            /** Platform Name */
+            platform_name: string | null;
+            /**
+             * Departure Time
+             * Format: date-time
+             */
+            departure_time: string;
+            /**
+             * Arrival Time
+             * Format: date-time
+             */
+            arrival_time: string;
+            /** Wait Seconds */
+            wait_seconds: number;
+            /** Margin Seconds */
+            margin_seconds: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "live" | "timetable";
+            /**
+             * Kind
+             * @default train
+             * @constant
+             */
+            kind: "train";
         };
         /** ValidationError */
         ValidationError: {
@@ -81,39 +260,28 @@ export interface components {
             ctx?: Record<string, never>;
         };
         /**
-         * WalkOption
-         * @description A train the walker can catch by leaving now.
-         *
-         *     ``wait_seconds`` is the time spent on the platform before the train arrives.
-         *     ``margin_seconds`` is the slack left after the risk setting's safety margin, i.e. how
-         *     much later the walker could leave and still make it at their chosen risk.
+         * WalkLeg
+         * @description A walk: along streets, and through a station at either end if there is one.
          */
-        WalkOption: {
-            /** Station Id */
-            station_id: string;
-            /** Station Name */
-            station_name: string;
-            /** Line Id */
-            line_id: string;
-            /** Line Name */
-            line_name: string;
-            /** Direction */
-            direction: string | null;
-            /** Destination Name */
-            destination_name: string | null;
-            /** Platform Name */
-            platform_name: string | null;
+        WalkLeg: {
+            /** From Name */
+            from_name: string;
+            /** To Name */
+            to_name: string;
+            /** Distance M */
+            distance_m: number;
+            /** Street Seconds */
+            street_seconds: number;
+            /** Station Seconds */
+            station_seconds: number;
+            /** Seconds */
+            seconds: number;
             /**
-             * Departure Time
-             * Format: date-time
+             * Kind
+             * @default walk
+             * @constant
              */
-            departure_time: string;
-            /** Walk Seconds */
-            walk_seconds: number;
-            /** Wait Seconds */
-            wait_seconds: number;
-            /** Margin Seconds */
-            margin_seconds: number;
+            kind: "walk";
         };
     };
     responses: never;
@@ -124,15 +292,15 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    options_options_get: {
+    journeys_journeys_get: {
         parameters: {
             query: {
-                lat: number;
-                lon: number;
+                /** @description "lat,lon" or a place */
+                from: string;
+                /** @description "lat,lon" or a place */
+                to: string;
                 /** @description Walking speed */
                 speed_kmh?: number;
-                /** @description Longest walk, minutes */
-                max_walk?: number;
                 risk?: "low" | "medium" | "high";
             };
             header?: never;
@@ -147,7 +315,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WalkOption"][];
+                    "application/json": components["schemas"]["JourneysFound"] | components["schemas"]["AmbiguousPlaces"];
                 };
             };
             /** @description Validation Error */
@@ -161,10 +329,12 @@ export interface operations {
             };
         };
     };
-    search_stations_stations_search_get: {
+    suggest_places_places_get: {
         parameters: {
             query: {
                 q: string;
+                /** @description One token per search, from the browser */
+                session: string;
             };
             header?: never;
             path?: never;
@@ -178,7 +348,40 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Station"][];
+                    "application/json": (components["schemas"]["StationSuggestion"] | components["schemas"]["PlaceSuggestion"])[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_place_places__place_id__get: {
+        parameters: {
+            query: {
+                session: string;
+            };
+            header?: never;
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedPlace"];
                 };
             };
             /** @description Validation Error */

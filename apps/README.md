@@ -1,6 +1,6 @@
 # Web app
 
-A phone-first page showing the trains you can still catch on foot. It has two parts:
+A phone-first, door-to-door journey planner timed at your own walking speed. It has two parts:
 
 | Part | What | Stack |
 |---|---|---|
@@ -20,16 +20,18 @@ Open http://localhost:5173.
 
 | Endpoint | Returns |
 |---|---|
-| `GET /options?lat=&lon=&speed_kmh=5.5&max_walk=12&risk=medium` | Catchable trains, soonest first |
-| `GET /stations/search?q=` | Stations for the picker |
+| `GET /journeys?from=&to=&speed_kmh=5.5&risk=medium` | `kind: "journeys"` with routes, earliest arrival first; or `kind: "ambiguous"` with TfL's candidate places |
+| `GET /places?q=&session=` | Type-ahead: up to 3 TfL stations, then Google's places |
+| `GET /places/{place_id}?session=` | A Google place as `"lat,lon"`; ends the Google session |
 
-Arrivals are shared between requests for 20 s, and station searches for 5 min.
+`from`/`to` take `"lat,lon"`, a postcode, a place name, or a candidate's `value`. Live arrivals are shared between requests for 20 s.
 
 ## Settings
 
 | Variable | Where | Default |
 |---|---|---|
 | `TFL_APP_KEY` | API (never sent to the browser) | anonymous |
+| `GOOGLE_MAPS_API_KEY` | API (never sent to the browser); Places API (New) | unset: stations only |
 | `CORS_ORIGINS` | API, comma-separated | `http://localhost:5173` |
 | `VITE_API_URL` | Web | `http://localhost:8000` |
 

@@ -1,12 +1,13 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { REFRESH_MS, useOptions } from "./useOptions";
+import { REFRESH_MS, useJourneys } from "./useJourneys";
 
-const query = { lat: 51.515, lon: -0.141, speed_kmh: 5.5, risk: "medium" as const };
+const query = { from: "51.5,-0.14", to: "Bank", speed_kmh: 5.5, risk: "medium" as const };
+const body = JSON.stringify({ kind: "journeys", journeys: [] });
 
 beforeEach(() => {
   vi.useFakeTimers();
-  vi.stubGlobal("fetch", vi.fn(async (_url: string) => new Response("[]")));
+  vi.stubGlobal("fetch", vi.fn(async (_url: string) => new Response(body)));
 });
 
 afterEach(() => {
@@ -14,12 +15,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("useOptions", () => {
+describe("useJourneys", () => {
   it("loads straight away, then refreshes every 30 s", async () => {
-    const { result } = renderHook(() => useOptions(query));
+    const { result } = renderHook(() => useJourneys(query));
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(result.current.options).toEqual([]);
+    expect(result.current.data).toEqual({ kind: "journeys", journeys: [] });
     const firstUpdate = result.current.updatedAt;
 
     await act(() => vi.advanceTimersByTimeAsync(REFRESH_MS));
@@ -27,15 +28,8 @@ describe("useOptions", () => {
     expect(result.current.updatedAt).toBeGreaterThan(firstUpdate!);
   });
 
-  it("sends the walking settings to the API", async () => {
-    renderHook(() => useOptions(query));
-    await act(() => vi.advanceTimersByTimeAsync(0));
-    const url = String(vi.mocked(fetch).mock.calls[0]?.[0]);
-    expect(url).toContain("/options?lat=51.515&lon=-0.141&speed_kmh=5.5&risk=medium");
-  });
-
   it("stops refreshing once unmounted", async () => {
-    const { unmount } = renderHook(() => useOptions(query));
+    const { unmount } = renderHook(() => useJourneys(query));
     await act(() => vi.advanceTimersByTimeAsync(0));
     unmount();
     await vi.advanceTimersByTimeAsync(REFRESH_MS * 3);

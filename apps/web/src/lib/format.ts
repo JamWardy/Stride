@@ -1,20 +1,20 @@
-/** Dropped from names to keep cards short. Other suffixes (" DLR Station") tell stations apart. */
-const TUBE_SUFFIX = " Underground Station";
+/** Suffixes dropped to keep cards short. " DLR Station" is kept: it tells Bank DLR from Bank. */
+const SUFFIXES = [" Underground Station", " Rail Station"];
 
 /** "Bank Underground Station" -> "Bank". */
 export function shortName(name: string): string {
-  return name.endsWith(TUBE_SUFFIX) ? name.slice(0, -TUBE_SUFFIX.length) : name;
+  const suffix = SUFFIXES.find((s) => name.endsWith(s));
+  return suffix ? name.slice(0, -suffix.length) : name;
 }
 
-/** Walking time, rounded up so it never looks shorter than it is. */
-export function walkText(seconds: number): string {
-  return `${Math.ceil(seconds / 60)} min walk`;
+/** Whole minutes, rounded up so a walk never looks shorter than it is. */
+export function minutesUp(seconds: number): number {
+  return Math.ceil(seconds / 60);
 }
 
-/** Time on the platform, rounded down so it never looks longer than it is. */
-export function waitText(seconds: number): string {
-  const minutes = Math.floor(seconds / 60);
-  return minutes < 1 ? "under 1 min wait" : `${minutes} min wait`;
+/** Whole minutes, rounded down so a wait never looks longer than it is. */
+export function minutesDown(seconds: number): number {
+  return Math.max(0, Math.floor(seconds / 60));
 }
 
 /** "22:11" in London time, whatever the phone's time zone. */
@@ -24,6 +24,12 @@ export function clockTime(iso: string): string {
     minute: "2-digit",
     timeZone: "Europe/London",
   });
+}
+
+/** "now", "in 1 min", "in 12 min" until `iso`. */
+export function untilText(iso: string, now: number): string {
+  const minutes = Math.floor((new Date(iso).getTime() - now) / 60_000);
+  return minutes < 1 ? "now" : `in ${minutes} min`;
 }
 
 export function agoText(ms: number): string {
