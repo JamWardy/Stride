@@ -299,6 +299,12 @@ def test_rejects_negative_retries() -> None:
         TflClient(max_retries=-1)
 
 
+@pytest.mark.parametrize("timeout", [0, -1])
+def test_rejects_non_positive_timeout(timeout: float) -> None:
+    with pytest.raises(ValueError):
+        TflClient(timeout=timeout)
+
+
 # ------------------------------------------------------------------ transport and body errors
 
 

@@ -70,7 +70,8 @@ class TflAmbiguousLocationError(TflError):
     """The journey planner could not tell which place was meant (HTTP 300).
 
     Each list holds TfL's candidates for that point, best match first; it is empty when that
-    point was understood. Pass a candidate's ``parameter_value`` back to ``journeys.plan``.
+    point was understood, or when TfL's reply could not be read (see ``body``). Pass a
+    candidate's ``parameter_value`` back to ``journeys.plan``.
     """
 
     def __init__(

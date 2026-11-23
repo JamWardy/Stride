@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 import respx
-from tfl import AsyncTflClient, TflAmbiguousLocationError, TflClient, TflError
+from tfl import AsyncTflClient, TflAmbiguousLocationError, TflClient
 from tfl_test_support import load
 
 OXC = "940GZZLUOXC"
@@ -87,14 +87,28 @@ def test_plan_ambiguous_raises_with_options(client: TflClient, api: respx.MockRo
     assert "to 'bank' (20 options)" in str(error)
 
 
-def test_plan_300_without_disambiguation_body_is_plain_error(
+def test_plan_300_without_readable_body_is_still_ambiguous_error(
     client: TflClient, api: respx.MockRouter
 ) -> None:
     api.get("/Journey/JourneyResults/a/to/b").respond(300, text="odd")
-    with pytest.raises(TflError) as info:
+    with pytest.raises(TflAmbiguousLocationError) as info:
         client.journeys.plan("a", "b")
-    assert type(info.value) is TflError
-    assert info.value.status_code == 300
+    error = info.value
+    assert error.status_code == 300
+    assert error.body == "odd"
+    assert error.from_options == error.to_options == error.via_options == []
+
+
+def test_plan_300_keeps_valid_sections_when_one_is_malformed(
+    client: TflClient, api: respx.MockRouter
+) -> None:
+    body = load("journey_ambiguous.json")
+    body["fromLocationDisambiguation"]["disambiguationOptions"] = [{"bogus": True}]
+    api.get("/Journey/JourneyResults/a/to/b").respond(300, json=body)
+    with pytest.raises(TflAmbiguousLocationError) as info:
+        client.journeys.plan("a", "b")
+    assert info.value.from_options == []
+    assert info.value.to_options
 
 
 def test_plan_ambiguity_is_not_retried(

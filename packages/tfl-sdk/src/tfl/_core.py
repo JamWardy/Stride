@@ -218,6 +218,8 @@ class BaseClient:
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
+        if timeout <= 0:
+            raise ValueError("timeout must be positive")
         # Read once to build the HTTP client, so kept private: changing them later would
         # have no effect.
         self._app_key = app_key if app_key is not None else os.environ.get(APP_KEY_ENV_VAR)

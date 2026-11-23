@@ -29,11 +29,15 @@ def _parse_journeys(raw: Any) -> list[Journey]:
     return _journeys.validate_python(json_list(raw, "journeys"))
 
 
-def _options(body: dict[str, Any], key: str) -> list[LocationOption]:
-    section = body.get(key)
+def _options(body: Any, key: str) -> list[LocationOption]:
+    """Return the candidates under ``key``, or ``[]`` if missing or not in the expected shape."""
+    section = body.get(key) if isinstance(body, dict) else None
     if not isinstance(section, dict):
         return []
-    return _location_options.validate_python(section.get("disambiguationOptions") or [])
+    try:
+        return _location_options.validate_python(section.get("disambiguationOptions") or [])
+    except ValidationError:
+        return []
 
 
 def _ambiguity_parser(from_: str, to: str) -> Callable[[httpx.Response], TflError | None]:
@@ -44,14 +48,9 @@ def _ambiguity_parser(from_: str, to: str) -> Callable[[httpx.Response], TflErro
             return None
         details = error_details(response)
         body = details["body"]
-        if not isinstance(body, dict):
-            return None
-        try:
-            from_options = _options(body, "fromLocationDisambiguation")
-            to_options = _options(body, "toLocationDisambiguation")
-            via_options = _options(body, "viaLocationDisambiguation")
-        except ValidationError:
-            return None
+        from_options = _options(body, "fromLocationDisambiguation")
+        to_options = _options(body, "toLocationDisambiguation")
+        via_options = _options(body, "viaLocationDisambiguation")
         unclear = [
             f"{label} ({len(options)} options)"
             for label, options in (
@@ -61,7 +60,8 @@ def _ambiguity_parser(from_: str, to: str) -> Callable[[httpx.Response], TflErro
             )
             if options
         ]
-        message = "Ambiguous journey location: " + (", ".join(unclear) or "no options given")
+        listed = ", ".join(unclear) or "TfL gave no readable options"
+        message = f"Ambiguous journey location: {listed}"
         return TflAmbiguousLocationError(
             message,
             from_options=from_options,
