@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+import threading
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from email.utils import format_datetime
@@ -144,6 +146,17 @@ def test_timeout_exhausted_raises_tfl_error(api: respx.MockRouter, sleeps: list[
     assert route.call_count == 3
     assert info.value.status_code is None
     assert isinstance(info.value.__cause__, httpx.TimeoutException)
+
+
+def test_transport_error_has_redacted_url(api: respx.MockRouter) -> None:
+    api.get("/StopPoint").mock(side_effect=httpx.ConnectError("refused"))
+    with TflClient(app_key="secret", max_retries=0) as client, pytest.raises(TflError) as info:
+        client.stops.nearby(51.5, -0.1)
+    assert info.value.url is not None
+    url = httpx.URL(info.value.url)
+    assert url.path == "/StopPoint"
+    assert url.params["stopTypes"] == "NaptanMetroStation"
+    assert "app_key" not in url.params
 
 
 def test_max_retries_zero(api: respx.MockRouter, sleeps: list[float]) -> None:
@@ -347,6 +360,33 @@ def test_ttl_cache_drops_expired_entries_on_set() -> None:
     clock.now = 10
     cache.set("new", 2)
     assert list(cache._entries) == ["new"]
+
+
+def test_ttl_cache_is_thread_safe() -> None:
+    # A tiny TTL means every set() sweeps expired entries while other threads read and
+    # write; without the lock this raised RuntimeError / KeyError.
+    cache = TTLCache(1e-6)
+    errors: list[BaseException] = []
+
+    def hammer(n: int) -> None:
+        try:
+            for i in range(5000):
+                cache.set((n, i), i)
+                cache.get((n, i - 1))
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=hammer, args=(n,)) for n in range(8)]
+    interval = sys.getswitchinterval()
+    sys.setswitchinterval(1e-6)  # switch threads very often so a race shows up reliably
+    try:
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+    finally:
+        sys.setswitchinterval(interval)
+    assert errors == []
 
 
 def test_version_matches_package_metadata() -> None:

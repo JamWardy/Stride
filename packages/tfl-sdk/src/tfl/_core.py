@@ -10,6 +10,7 @@ from __future__ import annotations
 import email.utils
 import os
 import random
+import threading
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -161,7 +162,10 @@ def error_from_response(response: httpx.Response) -> TflError:
 
 
 class TTLCache:
-    """A minimal in-memory cache whose entries expire ``ttl`` seconds after being stored."""
+    """A minimal in-memory cache whose entries expire ``ttl`` seconds after being stored.
+
+    Safe to share between threads (a sync client may be used from several at once).
+    """
 
     def __init__(self, ttl: float, *, clock: Callable[[], float] = time.monotonic) -> None:
         if ttl <= 0:
@@ -169,29 +173,33 @@ class TTLCache:
         self.ttl = ttl
         self._clock = clock
         self._entries: dict[Any, tuple[float, Any]] = {}
+        self._lock = threading.Lock()
 
     def get(self, key: Any) -> tuple[bool, Any]:
         """Return ``(True, value)`` on a fresh hit, otherwise ``(False, None)``."""
-        entry = self._entries.get(key)
-        if entry is None:
-            return False, None
-        expires_at, value = entry
-        if self._clock() >= expires_at:
-            del self._entries[key]
-            return False, None
-        return True, value
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return False, None
+            expires_at, value = entry
+            if self._clock() >= expires_at:
+                del self._entries[key]
+                return False, None
+            return True, value
 
     def set(self, key: Any, value: Any) -> None:
         """Store ``value`` under ``key`` for ``ttl`` seconds, dropping any expired entries."""
-        now = self._clock()
-        expired = [k for k, (expires_at, _) in self._entries.items() if now >= expires_at]
-        for k in expired:
-            del self._entries[k]
-        self._entries[key] = (now + self.ttl, value)
+        with self._lock:
+            now = self._clock()
+            expired = [k for k, (expires_at, _) in self._entries.items() if now >= expires_at]
+            for k in expired:
+                del self._entries[k]
+            self._entries[key] = (now + self.ttl, value)
 
     def clear(self) -> None:
         """Remove every entry."""
-        self._entries.clear()
+        with self._lock:
+            self._entries.clear()
 
 
 # --------------------------------------------------------------------------- shared client
@@ -281,11 +289,12 @@ class BaseClient:
             self.cache.set(self._cache_key(endpoint), raw)
         return result
 
-    @staticmethod
     def _transport_error(
-        endpoint: Endpoint[Any], exc: httpx.TransportError, retries: int
+        self, endpoint: Endpoint[Any], exc: httpx.TransportError, retries: int
     ) -> TflError:
         """Wrap a timeout or connection failure that has used up its retries."""
         what = "timed out" if isinstance(exc, httpx.TimeoutException) else "failed"
         suffix = f" after {retries} retries" if retries else ""
-        return TflError(f"Request to {endpoint.path} {what}{suffix}: {exc}")
+        # Built from the endpoint rather than the request, so the app key is never included.
+        url = httpx.URL(self._base_url + endpoint.path).copy_merge_params(dict(endpoint.params))
+        return TflError(f"Request to {endpoint.path} {what}{suffix}: {exc}", url=str(url))

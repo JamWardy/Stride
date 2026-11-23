@@ -61,6 +61,16 @@ def test_nearby(client: TflClient, api: respx.MockRouter) -> None:
     assert {line.id for line in stops[0].lines} == {"bakerloo", "central", "victoria"}
 
 
+@pytest.mark.parametrize("stop_types", [(), "", []])
+def test_nearby_rejects_empty_stop_types(
+    client: TflClient, api: respx.MockRouter, stop_types: tuple[str, ...] | str | list[str]
+) -> None:
+    route = api.get("/StopPoint")
+    with pytest.raises(ValueError):
+        client.stops.nearby(51.5, -0.1, stop_types=stop_types)
+    assert not route.called
+
+
 def test_get(client: TflClient, api: respx.MockRouter) -> None:
     api.get(f"/StopPoint/{OXC}").respond(json=load("stop_get.json"))
 

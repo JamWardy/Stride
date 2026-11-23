@@ -42,6 +42,8 @@ def _search_endpoint(query: str, modes: str | Sequence[str]) -> Endpoint[list[St
 def _nearby_endpoint(
     lat: float, lon: float, radius_m: int, stop_types: str | Sequence[str]
 ) -> Endpoint[list[NearbyStop]]:
+    if not stop_types:
+        raise ValueError("stop_types must name at least one stop type, e.g. 'NaptanMetroStation'")
     params: dict[str, ParamValue] = {
         "lat": lat,
         "lon": lon,
@@ -100,6 +102,9 @@ class Stops:
 
         Returns:
             Stops in TfL's order (nearest first), each with ``distance_m``.
+
+        Raises:
+            ValueError: If ``stop_types`` is empty.
 
         """
         return self._client._execute(_nearby_endpoint(lat, lon, radius_m, stop_types))
@@ -164,6 +169,9 @@ class AsyncStops:
 
         Returns:
             Stops in TfL's order (nearest first), each with ``distance_m``.
+
+        Raises:
+            ValueError: If ``stop_types`` is empty.
 
         """
         return await self._client._execute(_nearby_endpoint(lat, lon, radius_m, stop_types))
