@@ -182,3 +182,20 @@ def test_plan_leaves_modes_and_speed_to_tfl_by_default(
 def test_plan_rejects_unknown_walking_speed(client: TflClient) -> None:
     with pytest.raises(ValueError, match="walking_speed"):
         client.journeys.plan(OXC, BNK, walking_speed="brisk")  # type: ignore[arg-type]
+
+
+def test_plan_walk_between_stations_has_stop_without_id(
+    client: TflClient, api: respx.MockRouter
+) -> None:
+    api.get(url__regex=r"/Journey/JourneyResults/.*").respond(
+        json=load("journey_walk_between_stations.json")
+    )
+
+    [first, *_] = client.journeys.plan("51.5226,-0.1571", "51.5085,-0.0255")
+
+    walk_to_bank = first.legs[2]
+    assert walk_to_bank.mode.id == "walking"
+    assert walk_to_bank.instruction.summary == "Walk to Bank"
+    assert walk_to_bank.path is not None
+    [bank] = walk_to_bank.path.stops
+    assert (bank.id, bank.name) == (None, "Bank")

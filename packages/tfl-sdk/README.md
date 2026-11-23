@@ -41,7 +41,9 @@ client.stops.search("Oxford Circus")[0].id  # '940GZZLUOXC'
 client.stops.arrivals("940GZZLUOXC")[0].minutes_away  # sorted soonest first
 [(l.name, l.statuses[0].description) for l in client.lines.status()]  # ('Central', 'Minor Delays')
 [d.description for d in client.lines.disruptions("central")]
-[r.name for r in client.lines.route_sequence("central", "outbound").routes]  # 'Ealing Broadway ↔ Epping', ...
+[
+    r.name for r in client.lines.route_sequence("central", "outbound").routes
+]  # 'Ealing Broadway ↔ Epping', ...
 client.journeys.plan("940GZZLUOXC", "940GZZLUBNK")[0].duration_minutes  # 8
 ```
 

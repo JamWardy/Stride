@@ -58,9 +58,13 @@ class Instruction(TflModel):
 
 
 class StopRef(TflModel):
-    """A stop a vehicle calls at during a leg."""
+    """A stop on a leg's path.
 
-    id: str
+    ``id`` is ``None`` when TfL leaves it out, as it does for the station at the end of a
+    walk between two stations.
+    """
+
+    id: OptionalStr = None
     name: str
 
 
