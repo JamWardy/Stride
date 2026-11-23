@@ -33,7 +33,11 @@ class TflClient(BaseClient):
         max_retries: Retries after timeouts, connection errors, 429s and 5xx responses
             (0 disables retrying).
         cache_ttl: Seconds to cache slow-changing data (``stops.get``, ``stops.search``).
-            ``None`` (the default) disables caching. Arrivals are never cached.
+            ``None`` (the default) disables caching.
+        arrivals_cache_ttl: Seconds to share ``stops.arrivals`` results between calls, e.g.
+            20 for a server handling many users. A cached result's ``time_to_station`` is
+            reduced by its age (rounded up), so a train never looks further away than it
+            is. ``None`` (the default) disables it.
         base_url: Override the API root, e.g. for a proxy.
 
     """
@@ -45,9 +49,10 @@ class TflClient(BaseClient):
         max_retries: int = 3,
         *,
         cache_ttl: float | None = None,
+        arrivals_cache_ttl: float | None = None,
         base_url: str = DEFAULT_BASE_URL,
     ) -> None:
-        super().__init__(app_key, timeout, max_retries, cache_ttl, base_url)
+        super().__init__(app_key, timeout, max_retries, cache_ttl, base_url, arrivals_cache_ttl)
         self._http = httpx.Client(**self._http_options())
         self.stops = Stops(self)
         self.lines = Lines(self)
@@ -104,9 +109,10 @@ class AsyncTflClient(BaseClient):
         max_retries: int = 3,
         *,
         cache_ttl: float | None = None,
+        arrivals_cache_ttl: float | None = None,
         base_url: str = DEFAULT_BASE_URL,
     ) -> None:
-        super().__init__(app_key, timeout, max_retries, cache_ttl, base_url)
+        super().__init__(app_key, timeout, max_retries, cache_ttl, base_url, arrivals_cache_ttl)
         self._http = httpx.AsyncClient(**self._http_options())
         self.stops = AsyncStops(self)
         self.lines = AsyncLines(self)

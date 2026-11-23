@@ -132,3 +132,53 @@ async def test_async_plan(aclient: AsyncTflClient, api: respx.MockRouter) -> Non
     assert len(await aclient.journeys.plan(OXC, BNK)) == 3
     with pytest.raises(TflAmbiguousLocationError):
         await aclient.journeys.plan("oxford", "bank")
+
+
+def test_plan_parses_walks_and_changes(client: TflClient, api: respx.MockRouter) -> None:
+    # Recorded from a street address near Baker Street to one near Westferry.
+    api.get(url__regex=r"/Journey/JourneyResults/.*").respond(json=load("journey_walk_change.json"))
+
+    [first, *_] = client.journeys.plan("51.5226,-0.1571", "51.5085,-0.0255")
+
+    walk, bakerloo, central, dlr, last_walk = first.legs
+    assert walk.mode.id == "walking"
+    assert walk.distance_m == 208.0
+    assert walk.departure_point.naptan_id is None
+    assert walk.arrival_point.naptan_id == "940GZZLUBST"
+    assert len(walk.instruction.steps) == 7
+    assert all(step.distance_m is not None for step in walk.instruction.steps)
+    assert walk.path is not None
+    assert walk.path.stops == []
+
+    assert bakerloo.path is not None
+    assert [s.id for s in bakerloo.path.stops] == ["940GZZLURGP", OXC]
+    assert bakerloo.route_options[0].directions == ["Elephant & Castle Underground Station"]
+    # A change of trains has no walking leg: it is the gap between two legs.
+    assert central.departure_point.naptan_id == OXC
+    assert central.departure_time > bakerloo.arrival_time
+    assert dlr.departure_point.naptan_id == "940GZZDLBNK"
+    assert last_walk.arrival_point.naptan_id is None
+
+
+def test_plan_sends_modes_and_walking_speed(client: TflClient, api: respx.MockRouter) -> None:
+    route = api.get(f"/Journey/JourneyResults/{OXC}/to/{BNK}").respond(json={"journeys": []})
+
+    client.journeys.plan(OXC, BNK, modes=("tube", "dlr", "walking"), walking_speed="fast")
+
+    params = route.calls.last.request.url.params
+    assert (params["mode"], params["walkingSpeed"]) == ("tube,dlr,walking", "fast")
+
+
+def test_plan_leaves_modes_and_speed_to_tfl_by_default(
+    client: TflClient, api: respx.MockRouter
+) -> None:
+    route = api.get(f"/Journey/JourneyResults/{OXC}/to/{BNK}").respond(json={"journeys": []})
+    client.journeys.plan(OXC, BNK)
+    params = route.calls.last.request.url.params
+    assert "mode" not in params
+    assert "walkingSpeed" not in params
+
+
+def test_plan_rejects_unknown_walking_speed(client: TflClient) -> None:
+    with pytest.raises(ValueError, match="walking_speed"):
+        client.journeys.plan(OXC, BNK, walking_speed="brisk")  # type: ignore[arg-type]

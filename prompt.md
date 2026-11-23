@@ -51,7 +51,8 @@ Before writing models, call each endpoint once against the real API (I'll provid
 
 ### Reliability
 - Retries with exponential backoff + jitter on timeouts, 429, and 5xx (respect `Retry-After` if present). No retries on 4xx other than 429.
-- Optional simple in-memory TTL cache, off by default, enable-able per client, intended for slow-changing data (`stops.get`, `stops.search`). Never cache arrivals.
+- Optional simple in-memory TTL cache, off by default, enable-able per client, intended for slow-changing data (`stops.get`, `stops.search`).
+- Optional, separate arrivals cache (off by default) for servers; cached `time_to_station` is reduced by the entry's age.
 
 ### Docs
 - README with a 30-second quickstart, an example per method, and a note that it's unofficial and not affiliated with TfL.

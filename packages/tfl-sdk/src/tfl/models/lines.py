@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+import html
+from typing import Annotated, Any
+
+from pydantic import BeforeValidator, Field
 
 from ._base import OptionalStr, OptionalTflDatetime, TflDatetime, TflModel
+from .stops import StopSummary
+
+
+def _clean_name(value: Any) -> Any:
+    """``"Ealing Broadway  &harr;  Epping "`` -> ``"Ealing Broadway ↔ Epping"``."""
+    return " ".join(html.unescape(value).split()) if isinstance(value, str) else value
 
 
 class Disruption(TflModel):
@@ -50,3 +59,32 @@ class LineStatus(TflModel):
     name: str
     mode_name: str
     statuses: list[ServiceStatus] = Field(default_factory=list, alias="lineStatuses")
+
+
+class OrderedRoute(TflModel):
+    """One way a train can run along a line, as its stops in calling order.
+
+    Branches are separate routes, e.g. ``"Morden ↔ Edgware via Bank"`` and
+    ``"Morden ↔ Edgware via Charing Cross"``.
+    """
+
+    name: Annotated[str, BeforeValidator(_clean_name)]
+    stop_ids: list[str] = Field(default_factory=list, alias="naptanIds")
+    service_type: OptionalStr = None
+
+
+class RouteSequence(TflModel):
+    """The routes of a line in one direction, from ``/Line/{id}/Route/Sequence/{direction}``.
+
+    Each route's ``stop_ids`` run in the requested direction, first stop to terminus, and
+    use the same stop ids as arrivals and journey legs (e.g. ``940GZZLUBNK``). ``stations``
+    lists interchange stations by their hub id instead (e.g. ``HUBBAN`` for Bank).
+    """
+
+    line_id: str
+    line_name: str
+    direction: str
+    mode: OptionalStr = None
+    is_outbound_only: bool = False
+    routes: list[OrderedRoute] = Field(default_factory=list, alias="orderedLineRoutes")
+    stations: list[StopSummary] = Field(default_factory=list)

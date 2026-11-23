@@ -47,6 +47,10 @@ class Endpoint(Generic[T]):
 
     ``parse_error`` lets an endpoint turn a non-2xx response into its own error type (e.g.
     the journey planner's 300); returning ``None`` falls back to the standard mapping.
+
+    ``age`` marks live data (arrivals): it is cached only in the client's arrivals cache, and
+    a cached result is passed through ``age(result, seconds_since_fetched)`` so it stays
+    true to the current time.
     """
 
     path: str
@@ -54,6 +58,7 @@ class Endpoint(Generic[T]):
     params: Mapping[str, ParamValue] = field(default_factory=dict)
     cacheable: bool = False
     parse_error: Callable[[httpx.Response], TflError | None] | None = None
+    age: Callable[[T, float], T] | None = None
 
 
 def json_list(raw: Any, key: str) -> Any:
@@ -172,29 +177,37 @@ class TTLCache:
             raise ValueError("ttl must be positive")
         self.ttl = ttl
         self._clock = clock
-        self._entries: dict[Any, tuple[float, Any]] = {}
+        self._entries: dict[Any, tuple[float, Any]] = {}  # key -> (stored_at, value)
         self._lock = threading.Lock()
 
     def get(self, key: Any) -> tuple[bool, Any]:
         """Return ``(True, value)`` on a fresh hit, otherwise ``(False, None)``."""
+        hit, value, _ = self.get_with_age(key)
+        return hit, value
+
+    def get_with_age(self, key: Any) -> tuple[bool, Any, float]:
+        """Like :meth:`get`, plus the entry's age in seconds (``0.0`` on a miss)."""
         with self._lock:
             entry = self._entries.get(key)
             if entry is None:
-                return False, None
-            expires_at, value = entry
-            if self._clock() >= expires_at:
+                return False, None, 0.0
+            stored_at, value = entry
+            age = self._clock() - stored_at
+            if age >= self.ttl:
                 del self._entries[key]
-                return False, None
-            return True, value
+                return False, None, 0.0
+            return True, value, age
 
     def set(self, key: Any, value: Any) -> None:
         """Store ``value`` under ``key`` for ``ttl`` seconds, dropping any expired entries."""
         with self._lock:
             now = self._clock()
-            expired = [k for k, (expires_at, _) in self._entries.items() if now >= expires_at]
+            expired = [
+                k for k, (stored_at, _) in self._entries.items() if now - stored_at >= self.ttl
+            ]
             for k in expired:
                 del self._entries[k]
-            self._entries[key] = (now + self.ttl, value)
+            self._entries[key] = (now, value)
 
     def clear(self) -> None:
         """Remove every entry."""
@@ -215,6 +228,7 @@ class BaseClient:
         max_retries: int,
         cache_ttl: float | None,
         base_url: str,
+        arrivals_cache_ttl: float | None = None,
     ) -> None:
         if max_retries < 0:
             raise ValueError("max_retries must be >= 0")
@@ -227,6 +241,7 @@ class BaseClient:
         self._base_url = base_url.rstrip("/")
         self.retry_policy = RetryPolicy(max_retries=max_retries)
         self.cache = TTLCache(cache_ttl) if cache_ttl else None
+        self.arrivals_cache = TTLCache(arrivals_cache_ttl) if arrivals_cache_ttl else None
 
     def _http_options(self) -> dict[str, Any]:
         params = {"app_key": self._app_key} if self._app_key else {}
@@ -241,12 +256,22 @@ class BaseClient:
     def _cache_key(endpoint: Endpoint[Any]) -> tuple[str, tuple[tuple[str, str], ...]]:
         return endpoint.path, tuple(sorted((k, str(v)) for k, v in endpoint.params.items()))
 
+    def _cache_for(self, endpoint: Endpoint[Any]) -> TTLCache | None:
+        """Return the cache for this endpoint's results, or ``None`` if they are not cached."""
+        if endpoint.age is not None:
+            return self.arrivals_cache
+        return self.cache if endpoint.cacheable else None
+
     def _cached(self, endpoint: Endpoint[T]) -> tuple[T] | None:
         """Return ``(result,)`` on a cache hit, ``None`` on a miss or when caching is off."""
-        if self.cache is None or not endpoint.cacheable:
+        cache = self._cache_for(endpoint)
+        if cache is None:
             return None
-        hit, raw = self.cache.get(self._cache_key(endpoint))
-        return (endpoint.parse(raw),) if hit else None
+        hit, raw, age = cache.get_with_age(self._cache_key(endpoint))
+        if not hit:
+            return None
+        result = endpoint.parse(raw)
+        return (endpoint.age(result, age) if endpoint.age else result,)
 
     def _retry_delay(self, attempt: int, response: httpx.Response | None) -> float | None:
         """Seconds to wait before retrying, or ``None`` if the call should not be retried.
@@ -287,8 +312,9 @@ class BaseClient:
                 body=raw,
                 url=_redacted_url(response),
             ) from exc
-        if self.cache is not None and endpoint.cacheable:
-            self.cache.set(self._cache_key(endpoint), raw)
+        cache = self._cache_for(endpoint)
+        if cache is not None:
+            cache.set(self._cache_key(endpoint), raw)
         return result
 
     def _transport_error(

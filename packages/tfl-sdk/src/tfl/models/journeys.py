@@ -37,11 +37,41 @@ class LocationOption(TflModel):
     match_quality: int | None = None
 
 
+class InstructionStep(TflModel):
+    """One turn-by-turn step of a walking leg, e.g. "Turn left on to Baker Street"."""
+
+    description_heading: OptionalStr = None
+    description: OptionalStr = None
+    street_name: OptionalStr = None
+    turn_direction: OptionalStr = None
+    distance_m: float | None = Field(default=None, alias="distance")
+    lat: float | None = Field(default=None, alias="latitude")
+    lon: float | None = Field(default=None, alias="longitude")
+
+
 class Instruction(TflModel):
-    """Human-readable directions for a leg."""
+    """Human-readable directions for a leg; ``steps`` only on walking legs."""
 
     summary: str
     detailed: OptionalStr = None
+    steps: list[InstructionStep] = Field(default_factory=list)
+
+
+class StopRef(TflModel):
+    """A stop a vehicle calls at during a leg."""
+
+    id: str
+    name: str
+
+
+class LegPath(TflModel):
+    """Where a leg goes.
+
+    ``stops`` lists the calls after boarding, ending at the stop where you get off; it is
+    empty for walking legs.
+    """
+
+    stops: list[StopRef] = Field(default_factory=list, alias="stopPoints")
 
 
 class ModeRef(TflModel):
@@ -64,6 +94,9 @@ class Leg(TflModel):
     """One part of a journey on a single mode."""
 
     duration_minutes: int = Field(alias="duration")
+    distance_m: float | None = Field(default=None, alias="distance")
+    """Metres on walking legs. On other legs TfL's value is not metres (36 for a two-stop
+    Tube ride), so only rely on it for walking."""
     instruction: Instruction
     mode: ModeRef
     departure_time: TflDatetime
@@ -73,6 +106,7 @@ class Leg(TflModel):
     scheduled_departure_time: OptionalTflDatetime = None
     scheduled_arrival_time: OptionalTflDatetime = None
     route_options: list[RouteOption] = Field(default_factory=list)
+    path: LegPath | None = None
     disruptions: list[Disruption] = Field(default_factory=list)
     is_disrupted: bool = False
 

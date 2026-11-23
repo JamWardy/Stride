@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
@@ -34,6 +35,14 @@ def _parse_arrivals(raw: Any) -> list[Arrival]:
     return sorted(_arrivals.validate_python(raw), key=lambda a: a.time_to_station)
 
 
+def _age_arrivals(arrivals: list[Arrival], age_s: float) -> list[Arrival]:
+    """Bring cached predictions up to date: each train is ``age_s`` seconds closer."""
+    elapsed = math.ceil(age_s)
+    if elapsed <= 0:
+        return arrivals
+    return [a.model_copy(update={"time_to_station": a.time_to_station - elapsed}) for a in arrivals]
+
+
 def _search_endpoint(query: str, modes: str | Sequence[str]) -> Endpoint[list[StopSummary]]:
     params = {"modes": csv(modes)} if modes else {}
     return Endpoint(f"/StopPoint/Search/{segment(query)}", _parse_search, params, cacheable=True)
@@ -58,7 +67,7 @@ def _get_endpoint(stop_id: str) -> Endpoint[Stop]:
 
 
 def _arrivals_endpoint(stop_id: str) -> Endpoint[list[Arrival]]:
-    return Endpoint(f"/StopPoint/{segment(stop_id)}/Arrivals", _parse_arrivals)
+    return Endpoint(f"/StopPoint/{segment(stop_id)}/Arrivals", _parse_arrivals, age=_age_arrivals)
 
 
 # --------------------------------------------------------------------------- resources
@@ -122,7 +131,9 @@ class Stops:
         return self._client._execute(_get_endpoint(stop_id))
 
     def arrivals(self, stop_id: str) -> list[Arrival]:
-        """Fetch live arrival predictions for a stop, soonest first. Never cached.
+        """Fetch live arrival predictions for a stop, soonest first.
+
+        Cached only when the client's ``arrivals_cache_ttl`` is set.
 
         Args:
             stop_id: A NaPTAN id such as ``"940GZZLUOXC"``.
@@ -189,7 +200,9 @@ class AsyncStops:
         return await self._client._execute(_get_endpoint(stop_id))
 
     async def arrivals(self, stop_id: str) -> list[Arrival]:
-        """Fetch live arrival predictions for a stop, soonest first. Never cached.
+        """Fetch live arrival predictions for a stop, soonest first.
+
+        Cached only when the client's ``arrivals_cache_ttl`` is set.
 
         Args:
             stop_id: A NaPTAN id such as ``"940GZZLUOXC"``.

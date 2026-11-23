@@ -8,7 +8,7 @@ from ._base import OptionalStr, OptionalTflDatetime, TflDatetime, TflModel
 
 
 class StopSummary(TflModel):
-    """A stop returned by a text search (``/StopPoint/Search``)."""
+    """A stop in brief: a text-search match (``/StopPoint/Search``) or a station on a line."""
 
     id: str
     name: str

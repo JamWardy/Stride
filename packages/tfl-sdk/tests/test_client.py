@@ -222,6 +222,15 @@ def test_ttl_cache_expires() -> None:
     assert cache.get("k") == (False, None)
 
 
+def test_ttl_cache_reports_age() -> None:
+    clock = FakeClock()
+    cache = TTLCache(10, clock=clock)
+    assert cache.get_with_age("k") == (False, None, 0.0)
+    cache.set("k", 1)
+    clock.now = 4.5
+    assert cache.get_with_age("k") == (True, 1, 4.5)
+
+
 def test_cache_off_by_default(client: TflClient, api: respx.MockRouter) -> None:
     route = api.get(f"/StopPoint/{OXC}").respond(json=load("stop_get.json"))
     client.stops.get(OXC)
@@ -250,12 +259,59 @@ def test_cache_get_and_search_until_ttl(api: respx.MockRouter) -> None:
         assert get_route.call_count == 2
 
 
-def test_arrivals_never_cached(api: respx.MockRouter) -> None:
+def test_cache_ttl_does_not_cache_arrivals(api: respx.MockRouter) -> None:
     route = api.get(ARRIVALS).respond(json=[])
     with TflClient(cache_ttl=60) as client:
         client.stops.arrivals(OXC)
         client.stops.arrivals(OXC)
     assert route.call_count == 2
+
+
+def arrival(seconds: int) -> dict[str, object]:
+    return {
+        "id": f"a{seconds}",
+        "lineId": "victoria",
+        "lineName": "Victoria",
+        "expectedArrival": "2026-11-23T08:00:00Z",
+        "timeToStation": seconds,
+    }
+
+
+def test_arrivals_cache_ages_results_until_ttl(api: respx.MockRouter) -> None:
+    route = api.get(ARRIVALS).respond(json=[arrival(300), arrival(120)])
+    clock = FakeClock()
+    with TflClient(arrivals_cache_ttl=20) as client:
+        assert client.arrivals_cache is not None
+        assert client.cache is None  # independent of cache_ttl
+        client.arrivals_cache._clock = clock
+
+        assert [a.time_to_station for a in client.stops.arrivals(OXC)] == [120, 300]
+        clock.now = 12.2  # rounded up: a cached train never looks further away than it is
+        assert [a.time_to_station for a in client.stops.arrivals(OXC)] == [107, 287]
+        assert route.call_count == 1
+
+        clock.now = 20
+        assert [a.time_to_station for a in client.stops.arrivals(OXC)] == [120, 300]
+        assert route.call_count == 2
+
+
+def test_arrivals_cache_skips_errors(api: respx.MockRouter) -> None:
+    route = api.get(ARRIVALS).mock(
+        side_effect=[httpx.Response(404), httpx.Response(200, json=[arrival(60)])]
+    )
+    with TflClient(arrivals_cache_ttl=20) as client:
+        with pytest.raises(TflNotFoundError):
+            client.stops.arrivals(OXC)
+        assert client.stops.arrivals(OXC)[0].time_to_station == 60
+    assert route.call_count == 2
+
+
+async def test_async_arrivals_cache(api: respx.MockRouter) -> None:
+    route = api.get(ARRIVALS).respond(json=[arrival(60)])
+    async with AsyncTflClient(arrivals_cache_ttl=20) as client:
+        await client.stops.arrivals(OXC)
+        await client.stops.arrivals(OXC)
+    assert route.call_count == 1
 
 
 def test_errors_are_not_cached(api: respx.MockRouter) -> None:
