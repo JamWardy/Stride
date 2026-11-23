@@ -6,11 +6,25 @@ import math
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
+from tfl import WalkingSpeed
+
 #: How much slack a walker wants between reaching the platform and the train arriving.
 Risk = Literal["low", "medium", "high"]
 
 #: Safety margin in seconds for each :data:`Risk` setting.
 SAFETY_MARGIN_S: dict[Risk, float] = {"low": 90.0, "medium": 45.0, "high": 0.0}
+
+#: The pace TfL's journey planner assumes for each ``walking_speed`` setting, in km/h, along
+#: its walking routes. Measured on 2026-11-23 by fitting 41 walk-only journeys in central
+#: London (duration against ``Leg.distance_m``); each fit is good to about ±1.5 min per walk,
+#: mostly because TfL reports whole minutes.
+TFL_PACE_KMH: dict[WalkingSpeed, float] = {"slow": 2.7, "average": 3.8, "fast": 4.6}
+
+
+def nearest_tfl_setting(walking_speed_kmh: float) -> WalkingSpeed:
+    """Return the TfL ``walking_speed`` setting whose pace is closest to ``walking_speed_kmh``."""
+    return min(TFL_PACE_KMH, key=lambda s: abs(TFL_PACE_KMH[s] - walking_speed_kmh))
+
 
 #: Mean Earth radius in metres.
 EARTH_RADIUS_M = 6_371_008.8

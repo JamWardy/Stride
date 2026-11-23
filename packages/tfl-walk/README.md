@@ -16,7 +16,26 @@ with TflClient() as client:
 
 Async: `AsyncWalkPlanner` with an `AsyncTflClient`; it fetches stations' arrivals concurrently.
 
-## How it decides
+## Door-to-door journeys
+
+```python
+from tfl_walk import JourneyPlanner
+
+planner = JourneyPlanner(client, WalkerProfile(walking_speed_kmh=6, risk="medium"))
+for j in planner.journeys("51.5226,-0.1571", "940GZZLUBNK"):  # "lat,lon", stop id, postcode, place
+    print(j.leave_by, j.arrival_time, j.margin_seconds, [leg.kind for leg in j.legs])
+```
+
+| Part | Timed as |
+|---|---|
+| Street walk | TfL's walking distance at your speed |
+| Station entry/exit | TfL's station time, scaled from TfL's pace to yours |
+| Change of trains | TfL's smallest gap at that station, scaled the same way |
+| Train | First live train calling at your stop; TfL's timetable beyond the live horizon |
+
+TfL's paces (measured): slow 2.7, average 3.8, fast 4.6 km/h. Override with `entry_buffers` / `change_times` (seconds, by stop id).
+
+## Nearby trains: how it decides
 
 | Step | Rule |
 |---|---|
